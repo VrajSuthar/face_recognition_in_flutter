@@ -1,4 +1,4 @@
-# face_recognition_demo_1
+# eduwrx
 
 A new Flutter project.
 
@@ -14,7 +14,3 @@ A few resources to get you started if this is your first Flutter project:
 For help getting started with Flutter development, view the
 [online documentation](https://docs.flutter.dev/), which offers tutorials,
 samples, guidance on mobile development, and a full API reference.
-
-
-Flutter 3.32.5 • channel stable 
-Tools • Dart 3.8.1 • DevTools 2.45.1

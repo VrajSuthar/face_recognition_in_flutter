@@ -1,0 +1,111 @@
+import 'dart:convert';
+
+import 'package:dio/dio.dart';
+import 'package:eduwrx/core/routes/route_name.dart';
+import 'package:eduwrx/core/services/connectivity_service.dart';
+import 'package:flutter/foundation.dart';
+import 'package:get/get.dart' as getx;
+
+import 'package:shared_preferences/shared_preferences.dart';
+
+class ApiClient {
+  final String baseUrl;
+  final Duration timeout;
+  late final Dio _dio;
+  ConnectivityService connection = getx.Get.find<ConnectivityService>();
+
+  ApiClient({this.baseUrl = '', this.timeout = const Duration(seconds: 20)}) {
+    _dio = Dio(BaseOptions(baseUrl: baseUrl, connectTimeout: timeout, receiveTimeout: timeout, contentType: 'application/json', responseType: ResponseType.json));
+  }
+
+  /*============================ Get Api ============================*/
+
+  Future<dynamic> get(String path, {Map<String, String>? headers, Map<String, dynamic>? queryParameters, String contentType = 'application/json', bool? sendHeader = false}) async {
+    try {
+      connection.checkConnectivity();
+      if (!connection.isConnected.value) return;
+      SharedPreferences pref = await SharedPreferences.getInstance();
+      await Future.delayed(const Duration(milliseconds: 100));
+      if (kDebugMode) {
+        print("GET api url >>> $path");
+        if (queryParameters != null) {
+          print("Query Parameters: $queryParameters");
+        }
+      }
+      final response = await _dio.get(
+        path,
+        queryParameters: queryParameters,
+        options: Options(headers: sendHeader == false ? null : {}, contentType: contentType, responseType: ResponseType.json),
+      );
+      return _processResponse(response);
+    } catch (e) {
+      if (kDebugMode) {
+        print("Error calling api ======> $path");
+      }
+    }
+  }
+
+  /*============================ Post api ============================*/
+
+  Future<dynamic> post(
+    String path,
+    dynamic body, {
+    Map<String, String>? headers,
+    Map<String, dynamic>? queryParameters,
+    String contentType = 'application/json;charset=UTF-8',
+    bool? sendHeader = false,
+  }) async {
+    try {
+      connection.checkConnectivity();
+      if (!connection.isConnected.value) return;
+      SharedPreferences pref = await SharedPreferences.getInstance();
+      await Future.delayed(const Duration(milliseconds: 100));
+      if (kDebugMode) {
+        print("POST api url >>> $path");
+        if (body != null) {
+          print("Body Data: $body");
+        } else if (queryParameters != null) {
+          print("Query Parameters: $queryParameters");
+        }
+      }
+      final response = await _dio.post(
+        path,
+        data: body,
+        queryParameters: queryParameters,
+        options: Options(headers: sendHeader == false ? null : {}, contentType: contentType, responseType: ResponseType.json),
+      );
+      return _processResponse(response);
+    } catch (e) {
+      if (kDebugMode) {
+        print("Error calling api ======> $path");
+      }
+    }
+  }
+
+  /*============================ Process response ============================*/
+
+  dynamic _processResponse(Response response) {
+    final statusCode = response.statusCode;
+    final data = response.data;
+    final encoder = JsonEncoder.withIndent('  ');
+    print('Response status: $statusCode, data: ${encoder.convert(data)}');
+
+    switch (statusCode) {
+      case 200:
+        return data;
+      case 201:
+        return data;
+      // case 400:
+      //   throw BadRequestException(_getErrorMessage(data));
+      // case 401:
+      //   throw UnAuthorizedException(_getErrorMessage(data), "", statusCode!);
+      // case 403:
+      //   throw UnAuthorizedException(_getErrorMessage(data));
+      // case 404:
+      //   throw NotFoundException(_getErrorMessage(data));
+      // case 500:
+      // default:
+      //   throw FetchDataException('Server error: $statusCode');
+    }
+  }
+}
