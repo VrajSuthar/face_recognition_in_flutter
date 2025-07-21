@@ -6,7 +6,7 @@ import 'dart:io'; // for Platform check
 Future<img.Image> convertCameraImageToImg(CameraImage image, int sensorOrientation) async {
   final int width = image.width;
   final int height = image.height;
-
+             
   final img.Image rgbImage = img.Image(width: width, height: height);
 
   final Uint8List yPlane = image.planes[0].bytes;

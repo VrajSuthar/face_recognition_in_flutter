@@ -1,8 +1,10 @@
+import 'dart:convert';
 import 'dart:io';
 import 'dart:math';
 import 'dart:typed_data';
 
 import 'package:flutter/services.dart';
+import 'package:http/http.dart' as http;
 import 'package:image/image.dart' as img;
 import 'package:tflite_flutter/tflite_flutter.dart';
 
@@ -10,9 +12,23 @@ class FaceRecognizer {
   Interpreter? _interpreter;
   final int inputSize = 112;
 
+  Future<img.Image> loadNetworkImage(String imageUrl) async {
+    try {
+      final response = await http.get(Uri.parse(imageUrl));
+      if (response.statusCode != 200) throw Exception("Failed to load network image");
+
+      final image = img.decodeImage(response.bodyBytes);
+      if (image == null) throw Exception("Unable to decode image from network");
+
+      return img.copyResize(image, width: inputSize, height: inputSize);
+    } catch (e) {
+      throw Exception("loadNetworkImage error: $e");
+    }
+  }
+
   Future<void> loadModel() async {
     print("🔄 Loading TFLite model...");
-    _interpreter = await Interpreter.fromAsset('assets/model/facenet.tflite');
+    _interpreter = await Interpreter.fromAsset('assets/model/mobilefacenet.tflite');
     _interpreter!.allocateTensors();
     print("✅ TFLite model loaded");
     print("Input shape: ${_interpreter!.getInputTensor(0).shape}");
@@ -22,6 +38,19 @@ class FaceRecognizer {
   }
 
   bool get isReady => _interpreter != null;
+
+  Future<img.Image> loadBase64Image(String base64Str) async {
+    try {
+      base64Str = base64Str.split(',').last; // ✅ Strip prefix
+      final bytes = base64Decode(base64Str);
+      final image = img.decodeImage(bytes);
+      if (image == null) throw Exception('Failed to decode base64 image');
+
+      return img.copyResize(image, width: inputSize, height: inputSize);
+    } catch (e) {
+      throw Exception('loadBase64Image error: $e');
+    }
+  }
 
   Future<img.Image> loadAssetImage(String assetPath) async {
     final data = await rootBundle.load(assetPath);
@@ -42,7 +71,7 @@ class FaceRecognizer {
     if (_interpreter == null) {
       throw Exception('Interpreter not initialized');
     }
-
+    print("Input shape: ${_interpreter!.getInputTensor(0).shape}");
     final input = List.generate(
       1,
       (_) => List.generate(
@@ -54,10 +83,12 @@ class FaceRecognizer {
       ),
     );
 
-    final output = List.filled(1, List.filled(128, 0.0));
+    // final output = List<List<double>>.generate(1, (_) => List.filled(128, 0.0));
+
+    final output = List<List<double>>.generate(1, (_) => List.filled(192, 0.0));
 
     _interpreter!.run(input, output);
-    print("🔍 Embedding: ${output[0].take(5)}..."); // print first 5 values for quick check
+    print("🔍 Embedding: ${output[0].take(5)}...");
 
     return List<double>.from(output[0]);
   }
@@ -86,7 +117,7 @@ class FaceRecognizer {
     }
     final similarity = dot / (sqrt(normA) * sqrt(normB));
     print("📏 Cosine similarity: $similarity");
-    return dot / (sqrt(normA) * sqrt(normB)); 
+    return dot / (sqrt(normA) * sqrt(normB));
   }
 }
 

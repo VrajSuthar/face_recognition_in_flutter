@@ -6,6 +6,7 @@ import 'package:eduwrx/core/routes/route_name.dart';
 import 'package:eduwrx/core/utils/toast_util.dart';
 import 'package:eduwrx/features/view/on_boarding_view/otp_screen/bloc/otp_bloc.dart';
 import 'package:eduwrx/features/view/on_boarding_view/otp_screen/bloc/otp_state.dart';
+import 'package:eduwrx/features/view/on_boarding_view/otp_screen/repository/otp_repository.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
@@ -21,7 +22,7 @@ class OtpVerifyWidgets {
   void loadData() {
     final args = Get.arguments;
     if (args != null) {
-      email = args['email'];
+      email = args['useremail'];
     }
   }
 
@@ -46,7 +47,7 @@ class OtpVerifyWidgets {
         return Column(
           children: [
             CommonPinInput(
-              length: 6,
+              length: 4,
               validator: (value) {
                 if (value == null || value.isEmpty) {
                   return "Otp is required";
@@ -60,7 +61,8 @@ class OtpVerifyWidgets {
               focusedBorderColor: Theme.of(context).primaryColor,
               onCompleted: (pin) {
                 pinController.text = pin;
-                // OtpVerifyRepository().verifyPhoneNumber(context, this);
+                if (!validateForm(context)) return;
+                OtpRepository().verify_otp(context, email ?? '', pinController.text.toString());
               },
             ),
             SizedBox(height: 24.h),
@@ -88,17 +90,17 @@ class OtpVerifyWidgets {
     );
   }
 
-  Widget bottomBtn(BuildContext context) {   
+  Widget bottomBtn(BuildContext context) {
     return BlocBuilder<OtpVerifyBloc, OtpVerifyState>(
       builder: (context, state) {
         return Padding(
           padding: EdgeInsets.only(left: 10.w, right: 10.w, bottom: 40.h),
           child: Commonbtn(
             text: "Verify",
-            // isLoading: state.isLoading,
+            isLoading: state.isLoading,
             onTap: () {
-              Get.toNamed(RouteName.main_screen);
-              // OtpVerifyRepository().verifyPhoneNumber(context, this);
+              if (!validateForm(context)) return;
+              OtpRepository().verify_otp(context, email ?? '', pinController.text.toString());
             },
           ),
         );

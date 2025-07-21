@@ -1,12 +1,14 @@
 <resources>
     <style name="Theme.Transparent" parent="Theme.AppCompat.Light.NoActionBar">
-        <!-- Transparent background to avoid native splash -->
-        <item name="android:windowBackground">@android:color/transparent</item>
+        <!-- Show a solid background quickly -->
+        <item name="android:windowBackground">@color/splash_background</item>
 
-        <!-- Ensure status bar and navigation bar are visible -->
-        <item name="android:windowIsTranslucent">true</item>
+        <!-- Remove translucency -->
+        <item name="android:windowIsTranslucent">false</item>
+
+        <!-- Keep these for system bar visibility if needed -->
         <item name="android:windowDrawsSystemBarBackgrounds">true</item>
-        <item name="android:statusBarColor">#FFFFFFFF</item> <!-- white status bar -->
-        <item name="android:navigationBarColor">#FFFFFFFF</item> <!-- white nav bar -->
+        <item name="android:statusBarColor">#FFFFFFFF</item>
+        <item name="android:navigationBarColor">#FFFFFFFF</item>
     </style>
 </resources>

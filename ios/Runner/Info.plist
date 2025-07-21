@@ -31,6 +31,20 @@
 		<string>$(DEVELOPMENT_LANGUAGE)</string>
 		<key>CFBundleSignature</key>
 		<string>????</string>
+		<key>NSAppTransportSecurity</key>
+		<dict>
+			<key>NSExceptionDomains</key>
+			<dict>
+				<key>192.168.1.47</key>
+				<dict>
+					<key>NSIncludesSubdomains</key>
+					<true />
+					<key>NSTemporaryExceptionAllowsInsecureHTTPLoads</key>
+					<true />
+				</dict>
+			</dict>
+		</dict>
+
 
 		<!-- ✅ Orientation -->
 		<key>UISupportedInterfaceOrientations</key>

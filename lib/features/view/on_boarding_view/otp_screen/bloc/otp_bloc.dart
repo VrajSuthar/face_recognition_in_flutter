@@ -4,15 +4,13 @@ import 'package:eduwrx/features/view/on_boarding_view/otp_screen/bloc/otp_event.
 import 'package:eduwrx/features/view/on_boarding_view/otp_screen/bloc/otp_state.dart';
 import 'package:equatable/equatable.dart';
 
-
-
 class OtpVerifyBloc extends Bloc<OtpVerifyEvent, OtpVerifyState> {
   Timer? _timer;
 
   OtpVerifyBloc() : super(OtpVerifyState.initial()) {
     on<StartTimer>(_onStartTimer);
     on<Tick>(_onTick);
-    on<SetLoading>((event, emit) {
+    on<OtpBtnSetLoading>((event, emit) {
       emit(state.copyWith(isLoading: event.isLoading));
     });
   }

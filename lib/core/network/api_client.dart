@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:dio/dio.dart';
+import 'package:eduwrx/core/constants/global_variable.dart';
 import 'package:eduwrx/core/routes/route_name.dart';
 import 'package:eduwrx/core/services/connectivity_service.dart';
 import 'package:flutter/foundation.dart';
@@ -19,66 +20,83 @@ class ApiClient {
   }
 
   /*============================ Get Api ============================*/
-
   Future<dynamic> get(String path, {Map<String, String>? headers, Map<String, dynamic>? queryParameters, String contentType = 'application/json', bool? sendHeader = false}) async {
     try {
       connection.checkConnectivity();
       if (!connection.isConnected.value) return;
+
       SharedPreferences pref = await SharedPreferences.getInstance();
-      await Future.delayed(const Duration(milliseconds: 100));
+      var token = pref.getString(GlobalVariable.token_key);
+
       if (kDebugMode) {
         print("GET api url >>> $path");
-        if (queryParameters != null) {
-          print("Query Parameters: $queryParameters");
-        }
+        print("Token: $token");
       }
+
       final response = await _dio.get(
         path,
         queryParameters: queryParameters,
-        options: Options(headers: sendHeader == false ? null : {}, contentType: contentType, responseType: ResponseType.json),
+        options: Options(
+          headers: sendHeader == true ? {"Authorization": "Bearer $token"} : null,
+          contentType: contentType,
+          responseType: ResponseType.json,
+          validateStatus: (status) => status! < 500, // Optional: Handle 401 manually
+        ),
       );
+
       return _processResponse(response);
     } catch (e) {
-      if (kDebugMode) {
-        print("Error calling api ======> $path");
-      }
+      print("Error calling api ======> $path");
+      print("Exception: $e");
     }
   }
 
   /*============================ Post api ============================*/
 
-  Future<dynamic> post(
-    String path,
-    dynamic body, {
-    Map<String, String>? headers,
-    Map<String, dynamic>? queryParameters,
-    String contentType = 'application/json;charset=UTF-8',
-    bool? sendHeader = false,
-  }) async {
+  Future<dynamic> post(String path, dynamic body, {Map<String, String>? headers, Map<String, dynamic>? queryParameters, String contentType = 'application/json', bool? sendHeader = false}) async {
     try {
       connection.checkConnectivity();
       if (!connection.isConnected.value) return;
       SharedPreferences pref = await SharedPreferences.getInstance();
+      var token = pref.getString(GlobalVariable.token_key);
       await Future.delayed(const Duration(milliseconds: 100));
+
       if (kDebugMode) {
         print("POST api url >>> $path");
         if (body != null) {
-          print("Body Data: $body");
-        } else if (queryParameters != null) {
-          print("Query Parameters: $queryParameters");
+          if (body is FormData) {
+            print("📦 FormData Fields:");
+            body.fields.forEach((f) => print("🔸 ${f.key}: ${f.value}"));
+            print("📎 FormData Files:");
+            body.files.forEach((f) => print("🖼️ ${f.key}: ${f.value.filename} (${f.value.length} bytes)"));
+          } else {
+            print("📦 JSON Body: $body");
+          }
+        }
+        if (queryParameters != null) {
+          print("📍 Query Parameters: $queryParameters");
         }
       }
+
       final response = await _dio.post(
         path,
         data: body,
         queryParameters: queryParameters,
-        options: Options(headers: sendHeader == false ? null : {}, contentType: contentType, responseType: ResponseType.json),
+        options: Options(
+          headers: sendHeader == true ? {"Authorization": "Bearer $token"} : null,
+          contentType: body is FormData ? null : contentType, // Let Dio auto-set for FormData
+          responseType: ResponseType.json,
+        ),
       );
+
       return _processResponse(response);
-    } catch (e) {
+    } catch (e, stackTrace) {
       if (kDebugMode) {
-        print("Error calling api ======> $path");
+        print("❌ Exception in POST request to $path");
+        print("📌 Error: $e");
+        print("🧵 Stacktrace: $stackTrace");
       }
+      rethrow;
     }
   }
 

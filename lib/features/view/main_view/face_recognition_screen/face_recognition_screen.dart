@@ -1,13 +1,38 @@
 import 'package:camera/camera.dart';
 import 'package:eduwrx/core/common_widgets/oval_painter.dart';
+import 'package:eduwrx/core/routes/route_name.dart';
 import 'package:eduwrx/features/view/main_view/face_recognition_screen/face_recognition_controller.dart';
+import 'package:eduwrx/features/view/main_view/face_recognition_screen/repository/face_recognition_repo.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:get/get.dart';
+import 'package:lottie/lottie.dart';
 
-class FaceRecognitionScreen extends StatelessWidget {
+class FaceRecognitionScreen extends StatefulWidget {
   FaceRecognitionScreen({super.key});
 
+  @override
+  State<FaceRecognitionScreen> createState() => _FaceRecognitionScreenState();
+}
+
+class _FaceRecognitionScreenState extends State<FaceRecognitionScreen> with TickerProviderStateMixin {
   final FaceRecognitionController controller = Get.put(FaceRecognitionController());
+  late final AnimationController _lottieController;
+
+  @override
+  void initState() {
+    super.initState();
+
+    _lottieController = AnimationController(vsync: this);
+
+    FaceRecognitionRepo().fetchFaceSearch(context);
+  }
+
+  @override
+  void dispose() {
+    _lottieController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -28,24 +53,39 @@ class FaceRecognitionScreen extends StatelessWidget {
           return true;
         },
         child: Obx(() {
-          if (!controller.isCameraInitialized.value || !controller.cameraController.value.isInitialized) {
-            return const Center(child: CircularProgressIndicator());
+          if (controller.isLoading.value) {
+            return Center(
+              child: SizedBox(
+                width: 220.w.clamp(150.0, 280.0),
+                height: 220.h.clamp(150.0, 280.0),
+                child: Lottie.asset(
+                  'assets/lotti_json/loading.json',
+                  controller: _lottieController,
+                  onLoaded: (composition) {
+                    _lottieController
+                      ..duration = composition.duration
+                      ..repeat();
+                  },
+                  fit: BoxFit.fill,
+                ),
+              ),
+            );
           }
+
           return Stack(
             children: [
-              // ✅ Camera Preview
-              SizedBox.expand(child: CameraPreview(controller.cameraController)),
+              Obx(() {
+                return controller.isCameraInitialized.value ? SizedBox.expand(child: CameraPreview(controller.cameraController)) : const Center(child: CircularProgressIndicator());
+              }),
 
-
-
-              // ✅ Oval Overlay (face alignment guide)
+              // ✅ Oval Overlay
               Positioned.fill(
                 child: IgnorePointer(child: CustomPaint(painter: OvalPainter(controller.faceOvalRegion))),
               ),
 
               // 🔁 Face status message
               controller.faceStatusMessage.value == ''
-                  ? SizedBox.shrink()
+                  ? const SizedBox.shrink()
                   : Positioned(
                       top: 60,
                       left: 0,
@@ -70,12 +110,14 @@ class FaceRecognitionScreen extends StatelessWidget {
                 bottom: 0,
                 child: Obx(() {
                   final recognizedName = controller.recognizedName.value;
-                  return Container(
-                    width: double.infinity,
+                  final hasMatch = recognizedName.isNotEmpty;
+
+                  return AnimatedContainer(
+                    duration: const Duration(milliseconds: 300),
                     padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
-                    decoration: const BoxDecoration(
-                      color: Colors.black87,
-                      borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+                    decoration: BoxDecoration(
+                      color: hasMatch ? Colors.green : Colors.black87,
+                      borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
                     ),
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
@@ -83,7 +125,7 @@ class FaceRecognitionScreen extends StatelessWidget {
                         const Icon(Icons.person, color: Colors.white, size: 32),
                         const SizedBox(height: 8),
                         Text(
-                          recognizedName.isNotEmpty ? recognizedName : "Recognizing...",
+                          hasMatch ? recognizedName : "Recognizing...",
                           style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w500),
                         ),
                       ],
@@ -96,10 +138,16 @@ class FaceRecognitionScreen extends StatelessWidget {
               Positioned(
                 top: 64,
                 right: 16,
-                child: Container(
-                  decoration: BoxDecoration(color: Colors.white, shape: BoxShape.circle),
-                  padding: EdgeInsets.all(8),
-                  child: Icon(Icons.group_add_rounded, size: 32, color: Colors.black),
+                child: GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onTap: () {
+                    Get.toNamed(RouteName.register_person_screen);
+                  },
+                  child: Container(
+                    decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle),
+                    padding: const EdgeInsets.all(8),
+                    child: const Icon(Icons.group_add_rounded, size: 32, color: Colors.black),
+                  ),
                 ),
               ),
             ],

@@ -1,5 +1,3 @@
-
-
 sealed class OtpVerifyEvent {}
 
 class StartTimer extends OtpVerifyEvent {}
@@ -9,8 +7,8 @@ class Tick extends OtpVerifyEvent {
   Tick(this.remainingSeconds);
 }
 
-class SetLoading extends OtpVerifyEvent {
-  final bool isLoading;
+class OtpBtnSetLoading extends OtpVerifyEvent {
+  bool isLoading = false;
 
-  SetLoading(this.isLoading);
+  OtpBtnSetLoading({required this.isLoading});
 }

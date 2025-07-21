@@ -1,3 +1,8 @@
+import 'dart:developer';
+
+import 'package:eduwrx/core/constants/global_variable.dart';
+import 'package:eduwrx/features/view/main_view/check_in_out_screen/bloc/check_in_out_bloc.dart';
+import 'package:eduwrx/features/view/main_view/register_new_person/bloc/register_person_bloc.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -9,37 +14,35 @@ import 'package:eduwrx/core/routes/routes.dart';
 import 'package:eduwrx/core/services/connectivity_service.dart';
 import 'package:eduwrx/core/theme/app_theme.dart';
 import 'package:eduwrx/features/view/main_view/main_screen/bloc/main_bloc.dart';
-import 'package:eduwrx/features/view/on_boarding_view/authentication_view/login/bloc/login_bloc.dart';
+import 'package:eduwrx/features/view/on_boarding_view/login/bloc/login_bloc.dart';
 import 'package:eduwrx/features/view/on_boarding_view/otp_screen/bloc/otp_bloc.dart';
 import 'package:eduwrx/features/view/on_boarding_view/splash_screen/bloc/splash_bloc.dart';
 import 'package:permission_handler/permission_handler.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // ⚠️ Wrap in a try-catch to avoid blocking iOS launch
   await Future.wait([
     SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]),
     requestCameraPermission(),
   ]);
 
-  // Show status and navigation bars with edge-to-edge style
-  SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge, overlays: [SystemUiOverlay.top]);
+  // SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge, overlays: [SystemUiOverlay.top]);
 
-  // Apply overlay styling: white background, dark icons
   SystemChrome.setSystemUIOverlayStyle(
     const SystemUiOverlayStyle(
-      statusBarColor: Colors.transparent, // use transparent for immersive look
+      statusBarColor: Colors.transparent,
       statusBarIconBrightness: Brightness.dark,
       systemNavigationBarColor: Colors.white,
       systemNavigationBarIconBrightness: Brightness.dark,
     ),
   );
 
-  // Inject GetX services
   Get.put(ConnectivityService());
 
-  // Run the app
+  printToken();
+
   runApp(const MyApp());
 }
 
@@ -53,6 +56,12 @@ Future<void> requestCameraPermission() async {
   } else {
     print("❌ Camera permission denied");
   }
+}
+
+Future<void> printToken() async {
+  SharedPreferences pref = await SharedPreferences.getInstance();
+  var token = pref.getString(GlobalVariable.token_key);
+  log("Token ===> Bearer $token");
 }
 
 class MyApp extends StatelessWidget {
@@ -71,7 +80,8 @@ class MyApp extends StatelessWidget {
             BlocProvider<LoginBloc>(create: (_) => LoginBloc()),
             BlocProvider<MainBloc>(create: (_) => MainBloc()),
             BlocProvider<OtpVerifyBloc>(create: (_) => OtpVerifyBloc()),
-
+            BlocProvider<RegisterPersonBloc>(create: (_) => RegisterPersonBloc()),
+            BlocProvider<CheckInOutBloc>(create: (_) => CheckInOutBloc()),
           ],
           child: AnnotatedRegion<SystemUiOverlayStyle>(
             value: const SystemUiOverlayStyle(

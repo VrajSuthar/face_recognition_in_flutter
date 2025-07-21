@@ -1,4 +1,5 @@
 import 'package:bloc/bloc.dart';
+import 'package:eduwrx/core/constants/global_variable.dart';
 import 'package:eduwrx/core/routes/route_name.dart';
 import 'package:eduwrx/features/view/on_boarding_view/splash_screen/bloc/splash_event.dart';
 import 'package:eduwrx/features/view/on_boarding_view/splash_screen/bloc/splash_state.dart';
@@ -18,13 +19,13 @@ class SplashBloc extends Bloc<SplashEvent, SplashState> {
     Future.delayed(const Duration(seconds: 2), () async {
       SharedPreferences pref = await SharedPreferences.getInstance();
 
-      // final token = pref.getString(GlobalVariable.tokenKey);
+      final token = pref.getString(GlobalVariable.token_key);
 
-      // if (token == null) {
-      Get.offNamed(RouteName.login_screen);
-      // } else {
-      //   Get.offNamed(RouteName.main_screen);
-      // }
+      if (token == null) {
+        Get.offNamed(RouteName.login_screen);
+      } else {
+        Get.offNamed(RouteName.main_screen);
+      }
     });
   }
 }
