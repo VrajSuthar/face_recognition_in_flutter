@@ -7,7 +7,7 @@ plugins {
 
 android {
     namespace = "com.eduwrx.app"
-    compileSdk = 36
+    compileSdk = 35
     ndkVersion = "27.0.12077973"
 
     compileOptions {
@@ -24,8 +24,8 @@ android {
         applicationId = "com.eduwrx.app"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
-        minSdk = 33
-        targetSdk = 36
+        minSdk = 24
+        targetSdk = 35
         versionCode = flutter.versionCode
         versionName = flutter.versionName
     }

@@ -25,7 +25,7 @@ void main() async {
 
   await Future.wait([
     SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]),
-    requestCameraPermission(),
+    requestPermissions(),
   ]);
 
   // SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge, overlays: [SystemUiOverlay.top]);
@@ -46,15 +46,27 @@ void main() async {
   runApp(const MyApp());
 }
 
-Future<void> requestCameraPermission() async {
-  final status = await Permission.camera.request();
-  if (status.isGranted) {
+Future<void> requestPermissions() async {
+  // Camera Permission
+  final cameraStatus = await Permission.camera.request();
+  if (cameraStatus.isGranted) {
     print("✅ Camera permission granted");
-  } else if (status.isPermanentlyDenied) {
+  } else if (cameraStatus.isPermanentlyDenied) {
     print("⚠️ Camera permission permanently denied. Redirecting to settings...");
     // await openAppSettings();
   } else {
     print("❌ Camera permission denied");
+  }
+
+  // Location Permission 👈
+  final locationStatus = await Permission.locationWhenInUse.request();
+  if (locationStatus.isGranted) {
+    print("✅ Location permission granted");
+  } else if (locationStatus.isPermanentlyDenied) {
+    print("⚠️ Location permission permanently denied. Redirecting to settings...");
+    // await openAppSettings();
+  } else {
+    print("❌ Location permission denied");
   }
 }
 

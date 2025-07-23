@@ -3,6 +3,7 @@ import 'package:eduwrx/core/common_widgets/common_text.dart';
 import 'package:eduwrx/core/common_widgets/common_text_form_field.dart';
 import 'package:eduwrx/features/view/main_view/check_in_out_screen/bloc/check_in_out_bloc.dart';
 import 'package:eduwrx/features/view/main_view/check_in_out_screen/bloc/check_in_out_state.dart';
+import 'package:eduwrx/features/view/main_view/check_in_out_screen/repository/check_in_out_repository.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
@@ -26,48 +27,60 @@ class CheckInOutWidgets {
   }
 
   Widget list_of_attendance(BuildContext context) {
-    return SingleChildScrollView(
-      child: BlocBuilder<CheckInOutBloc, CheckInOutState>(
-        builder: (context, state) {
-          if (state.isLoading == true) {
-            return Center(child: CircularProgressIndicator());
-          }
+    return RefreshIndicator(
+      onRefresh: () async {
+        CheckInOutRepository().fetchTeacherAttendance(context);
+      },
+      child: SingleChildScrollView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        child: BlocBuilder<CheckInOutBloc, CheckInOutState>(
+          builder: (context, state) {
+            if (state.isLoading == true) {
+              return SizedBox(
+                height: 300.h,
+                child: Center(child: CircularProgressIndicator()),
+              );
+            }
 
-          final list = state.filteredAttendanceList ?? state.teacherAttendanceList ?? [];
+            final list = state.filteredAttendanceList ?? state.teacherAttendanceList ?? [];
 
-          if (list.isEmpty) {
-            return Center(child: Text("No attendance records found."));
-          }
+            if (list.isEmpty) {
+              return SizedBox(
+                height: 300.h,
+                child: Center(child: Text("No attendance records found.")),
+              );
+            }
 
-          return Column(
-            children: [
-              Text("Teacher", style: Theme.of(context).textTheme.bodyLarge),
-              SizedBox(height: 16.h),
-              Padding(
-                padding: EdgeInsets.only(left: 16.w, right: 16.w),
-                child: CommonTextFormField(
-                  hintStyle: Theme.of(context).textTheme.bodyMedium,
-                  hintText: "Search Teacher",
-                  controller: textSearchController,
-                  onChanged: (value) {
-                    context.read<CheckInOutBloc>().add(SearchAttendance(value));
+            return Column(
+              children: [
+                Text("Teacher", style: Theme.of(context).textTheme.bodyLarge),
+                SizedBox(height: 16.h),
+                Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 16.w),
+                  child: CommonTextFormField(
+                    hintStyle: Theme.of(context).textTheme.bodyMedium,
+                    hintText: "Search Teacher",
+                    controller: textSearchController,
+                    onChanged: (value) {
+                      context.read<CheckInOutBloc>().add(SearchAttendance(value));
+                    },
+                  ),
+                ),
+                SizedBox(height: 16.h),
+                ListView.builder(
+                  shrinkWrap: true,
+                  padding: EdgeInsets.zero,
+                  physics: NeverScrollableScrollPhysics(),
+                  itemCount: list.length,
+                  itemBuilder: (context, index) {
+                    final data = list[index];
+                    return Padding(padding: EdgeInsets.only(left: 16, right: 16, bottom: 10), child: commonBox(context, data.teacherName ?? '', data.checkInTime ?? 'N/A', data.checkOutTime ?? 'N/A'));
                   },
                 ),
-              ),
-              SizedBox(height: 16.h),
-              ListView.builder(
-                shrinkWrap: true,
-                padding: EdgeInsets.all(0),
-                physics: NeverScrollableScrollPhysics(),
-                itemCount: list.length,
-                itemBuilder: (context, index) {
-                  final data = list[index];
-                  return Padding(padding: EdgeInsets.only(left: 16, right: 16, bottom: 10), child: commonBox(context, data.teacherName ?? '', data.checkInTime ?? 'N/A', data.checkOutTime ?? 'N/A'));
-                },
-              ),
-            ],
-          );
-        },
+              ],
+            );
+          },
+        ),
       ),
     );
   }

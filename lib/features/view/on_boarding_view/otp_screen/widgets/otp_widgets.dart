@@ -4,7 +4,9 @@ import 'package:eduwrx/core/common_widgets/common_text.dart';
 import 'package:eduwrx/core/constants/app_image.dart';
 import 'package:eduwrx/core/routes/route_name.dart';
 import 'package:eduwrx/core/utils/toast_util.dart';
+import 'package:eduwrx/features/view/on_boarding_view/login/repository/login_repository.dart';
 import 'package:eduwrx/features/view/on_boarding_view/otp_screen/bloc/otp_bloc.dart';
+import 'package:eduwrx/features/view/on_boarding_view/otp_screen/bloc/otp_event.dart';
 import 'package:eduwrx/features/view/on_boarding_view/otp_screen/bloc/otp_state.dart';
 import 'package:eduwrx/features/view/on_boarding_view/otp_screen/repository/otp_repository.dart';
 import 'package:flutter/material.dart';
@@ -73,7 +75,8 @@ class OtpVerifyWidgets {
                   ToastUtil.showToast(context, "Please wait before resending OTP", backgroundColor: Theme.of(context).primaryColor, textColor: Colors.white);
                   return;
                 }
-                // OtpVerifyRepository().resendOtp(context, this);
+                OtpRepository().resendOtp(context, email ?? '');
+                context.read<OtpVerifyBloc>().add(StartTimer());
               },
               child: AnimatedSwitcher(
                 duration: Duration(milliseconds: 300),

@@ -9,6 +9,8 @@
 		<string>This app needs access to your photo library.</string>
 		<key>NSPhotoLibraryAddUsageDescription</key>
 		<string>This app saves photos to your library.</string>
+		<key>NSLocationWhenInUseUsageDescription</key>
+		<string>This app needs access to your location for check-in accuracy.</string>
 
 		<!-- ✅ App Info -->
 		<key>CFBundleDisplayName</key>

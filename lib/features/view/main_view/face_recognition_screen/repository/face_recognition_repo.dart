@@ -8,9 +8,11 @@ import 'package:eduwrx/features/view/main_view/face_recognition_screen/model/che
 import 'package:eduwrx/features/view/main_view/face_recognition_screen/model/search_model.dart';
 import 'package:eduwrx/features/view/main_view/face_recognition_screen/model/teacher_model.dart';
 import 'package:flutter/material.dart';
+import 'package:geolocator/geolocator.dart';
 import 'package:get/get.dart';
 import 'package:flutter/widgets.dart';
 import 'package:intl/intl.dart';
+import 'package:geolocator/geolocator.dart';
 
 class FaceRecognitionRepo {
   /*============================ feacher FaceSearch ============================*/
@@ -33,7 +35,9 @@ class FaceRecognitionRepo {
       await controller.initAll();
     } catch (e) {
       print("❌ Error in fetchTeachers: $e");
+      ToastUtil.showToast(context, "Error while processing attendance", backgroundColor: Colors.red, textColor: Colors.white);
       controller.isLoading.value = false;
+      Get.back();
     }
   }
   /*============================ feacher teacher ============================*/
@@ -55,13 +59,23 @@ class FaceRecognitionRepo {
 
   /*============================ Check in ============================*/
 
-  static Future<void> checkIn({required int teacherId, required String locationCheckIn, required String teacherName}) async {
+  static Future<void> checkIn({required int teacherId, required String teacherName}) async {
     final controller = Get.find<FaceRecognitionController>();
 
     final now = DateTime.now();
-    final data = {'teacher_id': teacherId, 'attendance_date': DateFormat('yyyy-MM-dd').format(now), 'check_in_time': DateFormat('HH:mm:ss').format(now), 'location_check_in': locationCheckIn};
 
     try {
+      // ✅ Get location
+      Position position = await Geolocator.getCurrentPosition(locationSettings: LocationSettings(accuracy: LocationAccuracy.high));
+
+      // ✅ Prepare data with location
+      final data = {
+        'teacher_id': teacherId,
+        'attendance_date': DateFormat('yyyy-MM-dd').format(now),
+        'check_in_time': DateFormat('HH:mm:ss').format(now),
+        'location_check_in': "${position.latitude.toStringAsFixed(6)}  ${position.longitude.toStringAsFixed(6)}",
+      };
+
       final response = await ApiClient().post(AppApi.check_in, data, sendHeader: true);
       final res = response;
 
@@ -78,27 +92,31 @@ class FaceRecognitionRepo {
 
         controller.recognizedName.value = "";
 
-        Get.snackbar(
-          message.contains("already checked in") ? "Already Checked In" : "Error",
-          message,
-          backgroundColor: message.contains("already checked in") ? Colors.orange : Colors.red,
-          colorText: Colors.white,
-          snackPosition: SnackPosition.TOP,
-        );
+        // Get.snackbar(
+        //   message.contains("already checked in") ? "Already Checked In" : "Error",
+        //   message,
+        //   backgroundColor: message.contains("already checked in") ? Colors.orange : Colors.red,
+        //   colorText: Colors.white,
+        //   snackPosition: SnackPosition.TOP,
+        // );
       }
     } catch (e) {
       controller.recognizedName.value = "";
-      Get.snackbar("Error", "An unexpected error occurred.", backgroundColor: Colors.red, colorText: Colors.white, snackPosition: SnackPosition.TOP);
     }
   }
 
   /*============================ Check out ============================*/
 
-  static Future<void> checkOut({required int teacherId, required String locationCheckIn, required String teacherName}) async {
+  static Future<void> checkOut({required int teacherId, required String teacherName}) async {
     final controller = Get.find<FaceRecognitionController>();
-
+    Position position = await Geolocator.getCurrentPosition(locationSettings: LocationSettings(accuracy: LocationAccuracy.high));
     final now = DateTime.now();
-    final data = {'teacher_id': teacherId, 'attendance_date': DateFormat('yyyy-MM-dd').format(now), 'check_out_time': DateFormat('HH:mm:ss').format(now), 'location_check_in': locationCheckIn};
+    final data = {
+      'teacher_id': teacherId,
+      'attendance_date': DateFormat('yyyy-MM-dd').format(now),
+      'check_out_time': DateFormat('HH:mm:ss').format(now),
+      'location_check_in': "${position.latitude.toStringAsFixed(6)}  ${position.longitude.toStringAsFixed(6)}",
+    };
 
     try {
       final response = await ApiClient().post(AppApi.check_out, data, sendHeader: true);
@@ -106,7 +124,7 @@ class FaceRecognitionRepo {
 
       if (res['success'] == true) {
         controller.recognizedName.value = "$teacherName has Checked Out";
-        Get.snackbar("Success", controller.recognizedName.value, backgroundColor: Colors.green, colorText: Colors.white, snackPosition: SnackPosition.TOP);
+        Get.snackbar("Success", controller.recognizedName.value, backgroundColor: Colors.orange, colorText: Colors.white, snackPosition: SnackPosition.TOP);
       } else {
         final errors = res['errors'];
         String message = "Check-out failed.";
@@ -117,17 +135,16 @@ class FaceRecognitionRepo {
 
         controller.recognizedName.value = "";
 
-        Get.snackbar(
-          message.contains("already checked out") ? "Already Checked Out" : "Error",
-          message,
-          backgroundColor: message.contains("already checked out") ? Colors.orange : Colors.red,
-          colorText: Colors.white,
-          snackPosition: SnackPosition.TOP,
-        );
+        // Get.snackbar(
+        //   message.contains("already checked out") ? "Already Checked Out" : "Error",
+        //   message,
+        //   backgroundColor: message.contains("already checked out") ? Colors.orange : Colors.red,
+        //   colorText: Colors.white,
+        //   snackPosition: SnackPosition.TOP,
+        // );
       }
     } catch (e) {
       controller.recognizedName.value = "";
-      Get.snackbar("Error", "An unexpected error occurred.", backgroundColor: Colors.red, colorText: Colors.white, snackPosition: SnackPosition.TOP);
     }
   }
 }

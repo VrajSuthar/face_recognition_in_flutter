@@ -3,10 +3,10 @@ class AppApi {
 
   /*============================ Live Url ============================*/
 
-  // static const String base_url = "http://13.203.219.78:8001/api";
+  static const String base_url = "http://3.108.237.61:8001/api";
   /*============================ Local hoast ============================*/
 
-  static const String base_url = "http://192.168.1.47:8000/api";
+  // static const String base_url = "http://192.168.1.47:8000/api";
   static const String image_user = "$base_url/face/image/teacher/";
   /*============================ App api ============================*/
 

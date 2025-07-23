@@ -1,4 +1,6 @@
 import 'package:camera/camera.dart';
+import 'package:eduwrx/core/common_widgets/common_button.dart';
+import 'package:eduwrx/core/common_widgets/common_text.dart';
 import 'package:eduwrx/core/common_widgets/oval_painter.dart';
 import 'package:eduwrx/core/routes/route_name.dart';
 import 'package:eduwrx/features/view/main_view/face_recognition_screen/face_recognition_controller.dart';
@@ -18,6 +20,7 @@ class FaceRecognitionScreen extends StatefulWidget {
 class _FaceRecognitionScreenState extends State<FaceRecognitionScreen> with TickerProviderStateMixin {
   final FaceRecognitionController controller = Get.put(FaceRecognitionController());
   late final AnimationController _lottieController;
+  TextEditingController pinController = TextEditingController();
 
   @override
   void initState() {
@@ -48,9 +51,8 @@ class _FaceRecognitionScreenState extends State<FaceRecognitionScreen> with Tick
     return Scaffold(
       body: WillPopScope(
         onWillPop: () async {
-          await controller.cameraController.stopImageStream();
-          await controller.cameraController.dispose();
-          return true;
+          controller.willPopFunc(context, pinController);
+          return false;
         },
         child: Obx(() {
           if (controller.isLoading.value) {
@@ -97,7 +99,7 @@ class _FaceRecognitionScreenState extends State<FaceRecognitionScreen> with Tick
                           child: Container(
                             padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
                             decoration: BoxDecoration(color: Colors.black.withOpacity(0.6), borderRadius: BorderRadius.circular(8)),
-                            child: Text(message, style: const TextStyle(color: Colors.white, fontSize: 16)),
+                            child: CommonText(message, style: Theme.of(context).textTheme.bodySmall),
                           ),
                         );
                       }),
@@ -111,12 +113,17 @@ class _FaceRecognitionScreenState extends State<FaceRecognitionScreen> with Tick
                 child: Obx(() {
                   final recognizedName = controller.recognizedName.value;
                   final hasMatch = recognizedName.isNotEmpty;
+                  final action = controller.action;
 
                   return AnimatedContainer(
                     duration: const Duration(milliseconds: 300),
                     padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
                     decoration: BoxDecoration(
-                      color: hasMatch ? Colors.green : Colors.black87,
+                      color: hasMatch
+                          ? action == "check_out"
+                                ? Colors.blue
+                                : Colors.green
+                          : Colors.black87,
                       borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
                     ),
                     child: Column(
@@ -124,9 +131,62 @@ class _FaceRecognitionScreenState extends State<FaceRecognitionScreen> with Tick
                       children: [
                         const Icon(Icons.person, color: Colors.white, size: 32),
                         const SizedBox(height: 8),
-                        Text(
-                          hasMatch ? recognizedName : "Recognizing...",
-                          style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w500),
+                        CommonText(hasMatch ? recognizedName : "Recognizing...", style: Theme.of(context).textTheme.bodyLarge),
+                      ],
+                    ),
+                  );
+                }),
+              ),
+
+              // ✅ Conditionally render the Check Out button
+              Positioned(
+                left: 0,
+                right: 0,
+                bottom: 150,
+                child: Obx(() {
+                  final recognizedName = controller.recognizedName.value;
+                  final matchedUser = controller.listOfTeacherAndStudent.firstWhereOrNull((u) => u.fullName == recognizedName);
+                  final refId = matchedUser?.referenceId ?? 0;
+
+                  final shouldShowCheckout =
+                      recognizedName.isNotEmpty &&
+                      controller.wantToCheckOut.value &&
+                      controller.checkedInUsers.contains(refId) &&
+                      !controller.alreadyCheckOutUsers.contains(refId) &&
+                      controller.action != 'check_out';
+
+                  if (!shouldShowCheckout) return const SizedBox.shrink();
+
+                  return Center(
+                    child: Column(
+                      children: [
+                        CommonText("Do you wish to check out?", style: Theme.of(context).textTheme.bodyLarge),
+                        SizedBox(height: 8.h),
+                        GestureDetector(
+                          onTap: () async {
+                            try {
+                              await FaceRecognitionRepo.checkOut(teacherId: refId, teacherName: recognizedName);
+                              controller.alreadyCheckOutUsers.add(refId);
+                              controller.faceStatusMessage.value = "✅ Checked out: $recognizedName";
+                            } catch (e) {
+                              controller.faceStatusMessage.value = "❌ Failed to check-out: $recognizedName";
+                            }
+                          },
+                          child: Container(
+                            width: 0.5.sw,
+                            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                            decoration: BoxDecoration(
+                              color: Theme.of(context).primaryColor,
+                              borderRadius: BorderRadius.circular(10),
+                              boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 6, offset: const Offset(0, 3))],
+                            ),
+                            child: const Center(
+                              child: CommonText(
+                                "Check Out",
+                                style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600, fontSize: 16),
+                              ),
+                            ),
+                          ),
                         ),
                       ],
                     ),
@@ -146,7 +206,7 @@ class _FaceRecognitionScreenState extends State<FaceRecognitionScreen> with Tick
                   child: Container(
                     decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle),
                     padding: const EdgeInsets.all(8),
-                    child: const Icon(Icons.group_add_rounded, size: 32, color: Colors.black),
+                    child: const Icon(Icons.group_add_rounded, size: 24, color: Colors.black),
                   ),
                 ),
               ),

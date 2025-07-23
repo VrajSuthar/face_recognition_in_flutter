@@ -19,6 +19,7 @@ class LoginRepository {
       Get.toNamed(RouteName.otp_verify_screen, arguments: {"useremail": email});
       bloc.add(LoginBtnSetLoading(isloading: false));
     } catch (e) {
+      print("Error login ====> $e");
     } finally {
       bloc.add(LoginBtnSetLoading(isloading: false));
     }

@@ -41,4 +41,14 @@ class OtpRepository {
       bloc.add(OtpBtnSetLoading(isLoading: false));
     }
   }
+
+  Future<void> resendOtp(BuildContext context, String email) async {
+    try {
+      Map<String, String> data = {"email": email};
+      final response = await ApiClient().post(AppApi.send_login_otp, data);
+      ToastUtil.showToast(context, response['message'], backgroundColor: Theme.of(context).primaryColor, textColor: Colors.white);
+    } catch (e) {
+      print("Error resend otp ====> $e");
+    }
+  }
 }

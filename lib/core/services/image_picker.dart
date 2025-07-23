@@ -45,7 +45,15 @@ class ImagePickerHelper {
       compressFormat: ImageCompressFormat.jpg,
       compressQuality: 85,
       uiSettings: [
-        AndroidUiSettings(toolbarTitle: 'Crop Image', toolbarColor: Theme.of(context).primaryColor, toolbarWidgetColor: Colors.white, lockAspectRatio: false),
+        AndroidUiSettings(
+          toolbarTitle: 'Crop Image',
+          toolbarColor: Theme.of(context).primaryColor,
+          toolbarWidgetColor: Colors.white,
+          statusBarColor: Theme.of(context).primaryColorDark,
+          initAspectRatio: CropAspectRatioPreset.original,
+          lockAspectRatio: false,
+          hideBottomControls: false,
+        ),
         IOSUiSettings(title: 'Crop Image'),
       ],
     );
