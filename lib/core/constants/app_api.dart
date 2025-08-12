@@ -3,7 +3,7 @@ class AppApi {
 
   /*============================ Live Url ============================*/
 
-  static const String base_url = "http://3.108.237.61:8001/api";
+  static const String base_url = "http://35.154.203.71:8001/api";
   /*============================ Local hoast ============================*/
 
   // static const String base_url = "http://192.168.1.47:8000/api";

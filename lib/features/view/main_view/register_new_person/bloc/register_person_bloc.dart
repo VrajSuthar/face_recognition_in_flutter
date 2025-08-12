@@ -13,19 +13,12 @@ class RegisterPersonBloc extends Bloc<RegisterPersonEvent, RegisterPersonState> 
     /*============================ Upload profile photo ============================*/
 
     on<UpdateProfileImage>((event, emit) async {
-  
-      emit(
-        state.copyWith(
-          filePath: event.file,
-          filePathHasChanged: true, 
-          isLoading: true,
-        ),
-      );
+      emit(state.copyWith(filePath: event.file, filePathHasChanged: true, isLoading: true));
 
       final newUrl = await RegisterPersonRepository().uploadPhoto(event.file);
 
       if (newUrl != null) {
-        emit(state.copyWith(profileImageUrl: newUrl, isLoading: false));
+        emit(state.copyWith(profileImageUrl: newUrl.toString(), isLoading: false));
       } else {
         emit(state.copyWith(isLoading: false));
       }

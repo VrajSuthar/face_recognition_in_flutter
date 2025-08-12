@@ -25,6 +25,7 @@ class Datum {
   String? userType;
   int? referenceId;
   String? image;
+  String? imageUrl;
   int? classId;
   String? division;
   String? status;
@@ -33,13 +34,14 @@ class Datum {
   DateTime? updatedAt;
   int? createdBy;
 
-  Datum({this.id, this.userType, this.referenceId, this.image, this.classId, this.division, this.status, this.fullName, this.createdAt, this.updatedAt, this.createdBy});
+  Datum({this.id, this.userType, this.referenceId, this.image, this.imageUrl, this.classId, this.division, this.status, this.fullName, this.createdAt, this.updatedAt, this.createdBy});
 
   factory Datum.fromJson(Map<String, dynamic> json) => Datum(
     id: json["id"],
     userType: json["user_type"],
     referenceId: json["reference_id"],
     image: json["image"],
+    imageUrl: json["image_url"],
     classId: json["class_id"],
     division: json["division"],
     status: json["status"],
@@ -54,6 +56,7 @@ class Datum {
     "user_type": userType,
     "reference_id": referenceId,
     "image": image,
+    "image_url": imageUrl,
     "class_id": classId,
     "division": division,
     "status": status,

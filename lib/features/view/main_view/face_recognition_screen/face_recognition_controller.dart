@@ -207,7 +207,7 @@ class FaceRecognitionController extends GetxController {
       if (face.image == null || face.image!.isEmpty) continue;
 
       try {
-        final imageUrl = "${AppApi.image_user}${face.image}";
+        final imageUrl = "${face.imageUrl}";
         final processed = await preprocessNetworkFace(imageUrl);
         if (processed == null) continue;
 
