@@ -53,10 +53,15 @@ class _RegisterFaceScreenState extends ConsumerState<RegisterFaceScreen> {
       }
 
       final bytes = await picked.readAsBytes();
-      final decoded = img.decodeImage(bytes);
-      if (decoded == null) {
+      final raw = img.decodeImage(bytes);
+      if (raw == null) {
         throw Exception('Could not decode the selected image.');
       }
+      // ML Kit's file-based decoder honours EXIF orientation but
+      // `img.decodeImage` does not, so bake it in — otherwise the detected
+      // bounding box and these pixels disagree for any photo taken in
+      // portrait, and the crop grabs the wrong region.
+      final decoded = img.bakeOrientation(raw);
 
       final detector = ref.read(faceDetectorServiceProvider);
       final face = await detector
