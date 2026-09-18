@@ -2,10 +2,12 @@ import 'dart:io';
 
 import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../services/face/camera_image_converter.dart';
 import '../../services/face/face_crop.dart';
+import '../../services/face/face_entry.dart';
 import '../../services/face/face_similarity.dart';
 import '../../services/face/providers.dart';
 import 'face_overlay_geometry.dart';
@@ -28,13 +30,22 @@ class _FaceRecognitionScreenState extends ConsumerState<FaceRecognitionScreen> {
   bool _isBusy = false;
   bool _isStarting = false;
   DateTime _lastRun = DateTime.fromMillisecondsSinceEpoch(0);
-  Rect? _boxSensorSpace;
-  Size _sensorSize = Size.zero;
+  Rect? _boxDetectionSpace;
+  Size _detectionSize = Size.zero;
   String? _label;
+
+  /// Registered faces, loaded once on screen entry (see `_start`) rather than
+  /// re-read from disk on every inference.
+  List<FaceEntry> _entries = const [];
 
   @override
   void initState() {
     super.initState();
+    // v1: locked to portrait to avoid needing full sensorOrientation +
+    // deviceOrientation rotation compensation (see google_mlkit_commons docs).
+    // TODO: support device rotation by combining sensorOrientation with
+    // the live deviceOrientation per lens direction.
+    SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
     _start();
   }
 
@@ -43,7 +54,10 @@ class _FaceRecognitionScreenState extends ConsumerState<FaceRecognitionScreen> {
     // make this method safely re-runnable from the retry button.
     if (_isStarting) return;
     _isStarting = true;
-    _statusMessage = 'Starting camera…';
+    // Safe on both entry paths: Flutter explicitly tolerates `setState` from
+    // `initState` (the first build is already scheduled), and a Retry tap is
+    // an ordinary post-build state change that does need a rebuild.
+    setState(() => _statusMessage = 'Starting camera…');
     try {
       final repository = await ref.read(faceRepositoryProvider.future);
       final entries = await repository.loadAll();
@@ -52,6 +66,7 @@ class _FaceRecognitionScreenState extends ConsumerState<FaceRecognitionScreen> {
         setState(() => _statusMessage = 'Register a face first.');
         return;
       }
+      _entries = entries;
 
       List<CameraDescription> cameras;
       try {
@@ -104,6 +119,13 @@ class _FaceRecognitionScreenState extends ConsumerState<FaceRecognitionScreen> {
       });
 
       await controller.startImageStream((image) => _onFrame(image, frontCamera));
+    } catch (e) {
+      // Anything unexpected (a corrupted faces index, a failing provider, the
+      // image stream refusing to start) must still surface in the UI —
+      // otherwise the screen is stuck on "Starting camera…" forever.
+      if (mounted) {
+        setState(() => _statusMessage = 'Could not start recognition: $e');
+      }
     } finally {
       _isStarting = false;
     }
@@ -126,33 +148,40 @@ class _FaceRecognitionScreenState extends ConsumerState<FaceRecognitionScreen> {
 
       if (face == null) {
         setState(() {
-          _boxSensorSpace = null;
+          _boxDetectionSpace = null;
           _label = null;
           _statusMessage = 'No face detected';
         });
         return;
       }
 
-      final rawImage = imageFromCameraImage(image);
-      final cropped = cropFaceSquare(rawImage, face.boundingBox, size: _embedSize);
+      // Same coordinate space as `face.boundingBox` by construction — see
+      // `imageFromCameraImage`.
+      final frame = imageFromCameraImage(image, camera);
+      final cropped = cropFaceSquare(frame, face.boundingBox, size: _embedSize);
 
       final embedder = await ref.read(faceEmbedderServiceProvider.future);
       if (!mounted) return;
       final embedding = embedder.embed(cropped);
 
-      final repository = await ref.read(faceRepositoryProvider.future);
-      final entries = await repository.loadAll();
-      final match = bestMatch(embedding, entries);
+      final match = bestMatch(embedding, _entries);
       if (!mounted) return;
 
       setState(() {
-        _boxSensorSpace = face.boundingBox;
-        _sensorSize = Size(image.width.toDouble(), image.height.toDouble());
+        _boxDetectionSpace = face.boundingBox;
+        _detectionSize =
+            Size(frame.width.toDouble(), frame.height.toDouble());
         _statusMessage = null;
         _label = match == null
             ? null
             : '${match.isMatch ? match.name : 'Unknown'} — ${match.percentage.round()}%';
       });
+    } catch (e) {
+      // Without this the exception would escape the image-stream callback
+      // roughly every 700ms and the overlay would just silently freeze.
+      if (mounted) {
+        setState(() => _statusMessage = 'Recognition error: $e');
+      }
     } finally {
       _isBusy = false;
     }
@@ -160,8 +189,18 @@ class _FaceRecognitionScreenState extends ConsumerState<FaceRecognitionScreen> {
 
   @override
   void dispose() {
-    _controller?.stopImageStream();
-    _controller?.dispose();
+    SystemChrome.setPreferredOrientations(DeviceOrientation.values);
+    final controller = _controller;
+    _controller = null;
+    if (controller != null) {
+      // `stopImageStream` throws a CameraException when the controller is not
+      // currently streaming (e.g. disposed between `initialize()` and
+      // `startImageStream()`), and `dispose()` must never throw.
+      if (controller.value.isStreamingImages) {
+        controller.stopImageStream().catchError((Object _) {});
+      }
+      controller.dispose();
+    }
     super.dispose();
   }
 
@@ -192,15 +231,17 @@ class _FaceRecognitionScreenState extends ConsumerState<FaceRecognitionScreen> {
                   fit: StackFit.expand,
                   children: [
                     CameraPreview(controller),
-                    // NOTE: verify on device — if the box appears rotated
-                    // 90 degrees relative to the visible face, swap
-                    // `_sensorSize`'s width/height here to match how
-                    // CameraPreview rotates the raw sensor frame for display.
-                    if (_boxSensorSpace != null && _sensorSize != Size.zero)
+                    // `_detectionSize` is the size of the frame ML Kit
+                    // actually measured against (rotated upright on Android,
+                    // raw on iOS), so it is already in the same upright
+                    // orientation CameraPreview displays — no width/height
+                    // swap is needed here.
+                    if (_boxDetectionSpace != null &&
+                        _detectionSize != Size.zero)
                       CustomPaint(
                         painter: FaceOverlayPainter(
                           box: scaleRect(
-                              _boxSensorSpace!, _sensorSize, previewSize),
+                              _boxDetectionSpace!, _detectionSize, previewSize),
                           label: _label,
                         ),
                       ),

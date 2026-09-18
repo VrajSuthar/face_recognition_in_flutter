@@ -14,7 +14,8 @@ InputImage? inputImageFromCameraImage(
   CameraImage image,
   CameraDescription camera,
 ) {
-  final rotation = InputImageRotationValue.fromRawValue(camera.sensorOrientation);
+  final rotation =
+      InputImageRotationValue.fromRawValue(mlKitRotationDegrees(camera));
   if (rotation == null) return null;
 
   final format = InputImageFormatValue.fromRawValue(image.format.raw);
@@ -35,12 +36,42 @@ InputImage? inputImageFromCameraImage(
   );
 }
 
-/// Decodes a raw camera frame into a [img.Image] in the *same,
-/// un-rotated* pixel coordinate space that ML Kit's [Face.boundingBox]
-/// is reported in, so a box from [inputImageFromCameraImage]'s result can
-/// be used directly against this image (e.g. via `cropFaceSquare`).
-img.Image imageFromCameraImage(CameraImage image) {
-  return Platform.isIOS ? _bgra8888ToImage(image) : _nv21ToImage(image);
+/// The clockwise rotation, in degrees, handed to ML Kit for [camera].
+///
+/// This is the single source of truth shared by [inputImageFromCameraImage]
+/// (which puts it in the [InputImageMetadata]) and [imageFromCameraImage]
+/// (which applies it to the decoded pixels on Android), so the two can never
+/// drift apart.
+///
+/// v1 assumes the device is held in portrait — `FaceRecognitionScreen` locks
+/// the orientation while it is active. A rotation-aware version would combine
+/// `sensorOrientation` with the live device orientation per lens direction
+/// (see the google_mlkit_commons README).
+int mlKitRotationDegrees(CameraDescription camera) =>
+    camera.sensorOrientation % 360;
+
+/// Decodes a raw camera frame into an [img.Image] that lives in the *same*
+/// pixel coordinate space ML Kit reports [Face.boundingBox] in, so a box from
+/// the detector can be used directly against this image (e.g. via
+/// `cropFaceSquare`).
+///
+/// On Android, google_mlkit_commons hands the raw buffer to
+/// `InputImage.fromByteArray(..., rotationDegrees, ...)`; ML Kit rotates the
+/// image clockwise by that many degrees and reports detections in the
+/// *rotated* space (a 640x480 buffer at 90/270 degrees yields boxes in a
+/// 480x640 space). So the decoded pixels have to be rotated by the very same
+/// clockwise angle here — `img.copyRotate` rotates clockwise for a positive
+/// angle — otherwise the crop is taken from the wrong region entirely.
+///
+/// On iOS, google_mlkit_commons ignores the `rotation` metadata, so ML Kit's
+/// boxes stay in the raw BGRA buffer's space and no rotation must be applied.
+img.Image imageFromCameraImage(CameraImage image, CameraDescription camera) {
+  if (Platform.isIOS) return _bgra8888ToImage(image);
+
+  final decoded = _nv21ToImage(image);
+  final angle = mlKitRotationDegrees(camera);
+  if (angle == 0) return decoded;
+  return img.copyRotate(decoded, angle: angle);
 }
 
 img.Image _bgra8888ToImage(CameraImage image) {
