@@ -50,6 +50,7 @@ img.Image _bgra8888ToImage(CameraImage image) {
     height: image.height,
     bytes: plane.bytes.buffer,
     order: img.ChannelOrder.bgra,
+    rowStride: plane.bytesPerRow,
   );
 }
 
