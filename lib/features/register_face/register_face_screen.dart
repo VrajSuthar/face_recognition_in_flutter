@@ -68,6 +68,9 @@ class _RegisterFaceScreenState extends ConsumerState<RegisterFaceScreen> {
       final cropped =
           cropFaceSquare(decoded, face.boundingBox, size: _faceImageSize);
 
+      final embedder = await ref.read(faceEmbedderServiceProvider.future);
+      final embedding = embedder.embed(cropped);
+
       final repository = await ref.read(faceRepositoryProvider.future);
       if (!await repository.assetsDir.exists()) {
         await repository.assetsDir.create(recursive: true);
@@ -75,9 +78,6 @@ class _RegisterFaceScreenState extends ConsumerState<RegisterFaceScreen> {
       final fileName = 'face_${DateTime.now().millisecondsSinceEpoch}.png';
       final file = File(p.join(repository.assetsDir.path, fileName));
       await file.writeAsBytes(img.encodePng(cropped));
-
-      final embedder = await ref.read(faceEmbedderServiceProvider.future);
-      final embedding = embedder.embed(cropped);
 
       await repository.add(
         FaceEntry(name: name, imagePath: file.path, embedding: embedding),
