@@ -14,7 +14,7 @@ class FaceMatch {
   final bool isMatch;
 }
 
-const matchThreshold = 0.65;
+const double matchThreshold = 0.65;
 
 double cosineSimilarity(List<double> a, List<double> b) {
   if (a.length != b.length || a.isEmpty) return 0;
