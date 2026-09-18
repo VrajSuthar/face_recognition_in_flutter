@@ -26,6 +26,7 @@ class _FaceRecognitionScreenState extends ConsumerState<FaceRecognitionScreen> {
   CameraController? _controller;
   String? _statusMessage = 'Starting camera…';
   bool _isBusy = false;
+  bool _isStarting = false;
   DateTime _lastRun = DateTime.fromMillisecondsSinceEpoch(0);
   Rect? _boxSensorSpace;
   Size _sensorSize = Size.zero;
@@ -38,52 +39,74 @@ class _FaceRecognitionScreenState extends ConsumerState<FaceRecognitionScreen> {
   }
 
   Future<void> _start() async {
-    final repository = await ref.read(faceRepositoryProvider.future);
-    final entries = await repository.loadAll();
-    if (!mounted) return;
-    if (entries.isEmpty) {
-      setState(() => _statusMessage = 'Register a face first.');
-      return;
-    }
-
-    final cameras = await availableCameras();
-    if (cameras.isEmpty) {
-      if (!mounted) return;
-      setState(() => _statusMessage = 'No camera available on this device.');
-      return;
-    }
-    final frontCamera = cameras.firstWhere(
-      (c) => c.lensDirection == CameraLensDirection.front,
-      orElse: () => cameras.first,
-    );
-
-    final controller = CameraController(
-      frontCamera,
-      ResolutionPreset.medium,
-      enableAudio: false,
-      imageFormatGroup:
-          Platform.isIOS ? ImageFormatGroup.bgra8888 : ImageFormatGroup.nv21,
-    );
-
+    // Guard against re-entry (e.g. a double tap on the retry button) and
+    // make this method safely re-runnable from the retry button.
+    if (_isStarting) return;
+    _isStarting = true;
+    _statusMessage = 'Starting camera…';
     try {
-      await controller.initialize();
-    } catch (e) {
+      final repository = await ref.read(faceRepositoryProvider.future);
+      final entries = await repository.loadAll();
       if (!mounted) return;
-      setState(() => _statusMessage = 'Could not start the camera: $e');
-      return;
+      if (entries.isEmpty) {
+        setState(() => _statusMessage = 'Register a face first.');
+        return;
+      }
+
+      List<CameraDescription> cameras;
+      try {
+        cameras = await availableCameras();
+      } catch (e) {
+        if (!mounted) return;
+        setState(() => _statusMessage = 'Could not access the camera: $e');
+        return;
+      }
+      if (cameras.isEmpty) {
+        if (!mounted) return;
+        setState(() => _statusMessage = 'No camera available on this device.');
+        return;
+      }
+      final frontCamera = cameras.firstWhere(
+        (c) => c.lensDirection == CameraLensDirection.front,
+        orElse: () => cameras.first,
+      );
+
+      final controller = CameraController(
+        frontCamera,
+        ResolutionPreset.medium,
+        enableAudio: false,
+        imageFormatGroup:
+            Platform.isIOS ? ImageFormatGroup.bgra8888 : ImageFormatGroup.nv21,
+      );
+
+      try {
+        await controller.initialize();
+      } catch (e) {
+        try {
+          await controller.dispose();
+        } catch (_) {
+          // The controller already failed to initialize; ignore any
+          // secondary error from disposing it — we're discarding it either way.
+        }
+        if (!mounted) return;
+        setState(() => _statusMessage = 'Could not start the camera: $e');
+        return;
+      }
+
+      if (!mounted) {
+        await controller.dispose();
+        return;
+      }
+
+      setState(() {
+        _controller = controller;
+        _statusMessage = null;
+      });
+
+      await controller.startImageStream((image) => _onFrame(image, frontCamera));
+    } finally {
+      _isStarting = false;
     }
-
-    if (!mounted) {
-      await controller.dispose();
-      return;
-    }
-
-    setState(() {
-      _controller = controller;
-      _statusMessage = null;
-    });
-
-    await controller.startImageStream((image) => _onFrame(image, frontCamera));
   }
 
   Future<void> _onFrame(CameraImage image, CameraDescription camera) async {
@@ -114,6 +137,7 @@ class _FaceRecognitionScreenState extends ConsumerState<FaceRecognitionScreen> {
       final cropped = cropFaceSquare(rawImage, face.boundingBox, size: _embedSize);
 
       final embedder = await ref.read(faceEmbedderServiceProvider.future);
+      if (!mounted) return;
       final embedding = embedder.embed(cropped);
 
       final repository = await ref.read(faceRepositoryProvider.future);
@@ -147,7 +171,19 @@ class _FaceRecognitionScreenState extends ConsumerState<FaceRecognitionScreen> {
     return Scaffold(
       appBar: AppBar(title: const Text('Face Recognition')),
       body: controller == null || !controller.value.isInitialized
-          ? Center(child: Text(_statusMessage ?? 'Loading…'))
+          ? Center(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(_statusMessage ?? 'Loading…'),
+                  const SizedBox(height: 16),
+                  ElevatedButton(
+                    onPressed: _start,
+                    child: const Text('Retry'),
+                  ),
+                ],
+              ),
+            )
           : LayoutBuilder(
               builder: (context, constraints) {
                 final previewSize =
