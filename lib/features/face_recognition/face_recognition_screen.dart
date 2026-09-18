@@ -232,10 +232,14 @@ class _FaceRecognitionScreenState extends ConsumerState<FaceRecognitionScreen> {
                   children: [
                     CameraPreview(controller),
                     // `_detectionSize` is the size of the frame ML Kit
-                    // actually measured against (rotated upright on Android,
-                    // raw on iOS), so it is already in the same upright
-                    // orientation CameraPreview displays — no width/height
-                    // swap is needed here.
+                    // actually measured against (rotated upright on Android;
+                    // raw, un-rotated sensor space on iOS — google_mlkit_commons
+                    // ignores the rotation hint there). On Android this already
+                    // matches CameraPreview's upright orientation. On iOS the
+                    // box/crop stay in sensor (landscape) space while
+                    // CameraPreview renders upright — verify on an iOS device
+                    // and rotate `frame`/the box there too if the overlay or
+                    // crop appears sideways.
                     if (_boxDetectionSpace != null &&
                         _detectionSize != Size.zero)
                       CustomPaint(
