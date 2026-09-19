@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:typed_data';
 import 'dart:ui';
 
 import 'package:camera/camera.dart';
@@ -14,8 +15,9 @@ InputImage? inputImageFromCameraImage(
   CameraImage image,
   CameraDescription camera,
 ) {
-  final rotation =
-      InputImageRotationValue.fromRawValue(mlKitRotationDegrees(camera));
+  final rotation = InputImageRotationValue.fromRawValue(
+    mlKitRotationDegrees(camera),
+  );
   if (rotation == null) return null;
 
   final format = InputImageFormatValue.fromRawValue(image.format.raw);
@@ -50,6 +52,20 @@ InputImage? inputImageFromCameraImage(
 int mlKitRotationDegrees(CameraDescription camera) =>
     camera.sensorOrientation % 360;
 
+/// The size of the space ML Kit reports [Face.boundingBox] in for [image]:
+/// the frame rotated upright on Android (a 640x480 buffer at 90/270 degrees
+/// yields a 480x640 space), or the raw buffer size on iOS, where
+/// google_mlkit_commons ignores the rotation hint.
+///
+/// Cheap (no pixel work), so the recognition screen can place the overlay on
+/// every detection without decoding the frame.
+Size detectionSizeFor(CameraImage image, CameraDescription camera) {
+  final swap = !Platform.isIOS && mlKitRotationDegrees(camera) % 180 != 0;
+  return swap
+      ? Size(image.height.toDouble(), image.width.toDouble())
+      : Size(image.width.toDouble(), image.height.toDouble());
+}
+
 /// Decodes a raw camera frame into an [img.Image] that lives in the *same*
 /// pixel coordinate space ML Kit reports [Face.boundingBox] in, so a box from
 /// the detector can be used directly against this image (e.g. via
@@ -58,37 +74,39 @@ int mlKitRotationDegrees(CameraDescription camera) =>
 /// On Android, google_mlkit_commons hands the raw buffer to
 /// `InputImage.fromByteArray(..., rotationDegrees, ...)`; ML Kit rotates the
 /// image clockwise by that many degrees and reports detections in the
-/// *rotated* space (a 640x480 buffer at 90/270 degrees yields boxes in a
-/// 480x640 space). So the decoded pixels have to be rotated by the very same
+/// *rotated* space. So the decoded pixels have to be rotated by the very same
 /// clockwise angle here — `img.copyRotate` rotates clockwise for a positive
 /// angle — otherwise the crop is taken from the wrong region entirely.
 ///
 /// On iOS, google_mlkit_commons ignores the `rotation` metadata, so ML Kit's
 /// boxes stay in the raw BGRA buffer's space and no rotation must be applied.
-img.Image imageFromCameraImage(CameraImage image, CameraDescription camera) {
-  if (Platform.isIOS) return _bgra8888ToImage(image);
+///
+/// Takes plain values (no [CameraImage]) so it can run in a background
+/// isolate — the per-pixel NV21 conversion is far too slow for the UI thread.
+img.Image imageFromFrameBytes({
+  required Uint8List bytes,
+  required int width,
+  required int height,
+  required int bytesPerRow,
+  required bool isIOS,
+  required int rotationDegrees,
+}) {
+  if (isIOS) {
+    return img.Image.fromBytes(
+      width: width,
+      height: height,
+      bytes: bytes.buffer,
+      order: img.ChannelOrder.bgra,
+      rowStride: bytesPerRow,
+    );
+  }
 
-  final decoded = _nv21ToImage(image);
-  final angle = mlKitRotationDegrees(camera);
-  if (angle == 0) return decoded;
-  return img.copyRotate(decoded, angle: angle);
+  final decoded = _nv21ToImage(bytes, width, height);
+  if (rotationDegrees == 0) return decoded;
+  return img.copyRotate(decoded, angle: rotationDegrees);
 }
 
-img.Image _bgra8888ToImage(CameraImage image) {
-  final plane = image.planes.first;
-  return img.Image.fromBytes(
-    width: image.width,
-    height: image.height,
-    bytes: plane.bytes.buffer,
-    order: img.ChannelOrder.bgra,
-    rowStride: plane.bytesPerRow,
-  );
-}
-
-img.Image _nv21ToImage(CameraImage image) {
-  final width = image.width;
-  final height = image.height;
-  final bytes = image.planes.first.bytes;
+img.Image _nv21ToImage(Uint8List bytes, int width, int height) {
   final frameSize = width * height;
   final out = img.Image(width: width, height: height);
 
@@ -102,8 +120,10 @@ img.Image _nv21ToImage(CameraImage image) {
       final u = bytes[uvIndex + 1] & 0xff;
 
       final r = (y + 1.370705 * (v - 128)).round().clamp(0, 255);
-      final g =
-          (y - 0.337633 * (u - 128) - 0.698001 * (v - 128)).round().clamp(0, 255);
+      final g = (y - 0.337633 * (u - 128) - 0.698001 * (v - 128)).round().clamp(
+        0,
+        255,
+      );
       final b = (y + 1.732446 * (u - 128)).round().clamp(0, 255);
 
       out.setPixelRgb(col, row, r, g, b);
