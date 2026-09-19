@@ -13,15 +13,9 @@ import 'recognition_state.dart';
 
 const _embedSize = 112;
 
-/// How often a frame is run through the (cheap) face detector to move the box.
-const _detectEvery = Duration(milliseconds: 90);
-
-/// How often the (costly) crop + embedding runs to refresh the name label.
-const _recognizeEvery = Duration(milliseconds: 600);
-
-/// Consecutive detector misses tolerated before the box is dropped, so a
-/// single dropped frame doesn't make the overlay flicker off and on.
-const _missesBeforeClear = 5;
+/// Consecutive detector misses tolerated before the result is dropped, so a
+/// single missed detection doesn't make the text flicker to "No face".
+const _missesBeforeClear = 3;
 
 final recognitionProvider =
     NotifierProvider.autoDispose<RecognitionNotifier, RecognitionState>(
@@ -32,8 +26,6 @@ class RecognitionNotifier extends Notifier<RecognitionState> {
   CameraController? _controller;
   bool _isStarting = false;
   bool _isBusy = false;
-  DateTime _lastDetect = DateTime.fromMillisecondsSinceEpoch(0);
-  DateTime _lastRecognize = DateTime.fromMillisecondsSinceEpoch(0);
   int _misses = 0;
 
   /// Registered faces, loaded once per start rather than re-read from disk on
@@ -129,12 +121,13 @@ class RecognitionNotifier extends Notifier<RecognitionState> {
     }
   }
 
+  /// Runs every frame the pipeline is free to take — there is no time-based
+  /// throttle. A frame that arrives while the previous one is still being
+  /// processed is dropped (the camera delivers frames faster than detection +
+  /// embedding can run, and queueing them would only add latency).
   Future<void> _onFrame(CameraImage image, CameraDescription camera) async {
     if (_isBusy || !ref.mounted) return;
-    final now = DateTime.now();
-    if (now.difference(_lastDetect) < _detectEvery) return;
     _isBusy = true;
-    _lastDetect = now;
 
     try {
       final inputImage = inputImageFromCameraImage(image, camera);
@@ -151,24 +144,6 @@ class RecognitionNotifier extends Notifier<RecognitionState> {
       }
       _misses = 0;
 
-      // Publish the box straight away, keeping the previous label, so the
-      // overlay tracks at detector speed instead of waiting on recognition.
-      final previous = state.face;
-      _emit(
-        state.copyWith(
-          clearMessage: true,
-          face: TrackedFace(
-            box: face.boundingBox,
-            frameSize: detectionSizeFor(image, camera),
-            label: previous?.label,
-            isMatch: previous?.isMatch ?? false,
-          ),
-        ),
-      );
-
-      if (now.difference(_lastRecognize) < _recognizeEvery) return;
-      _lastRecognize = now;
-
       final cropped = await cropFaceInBackground(
         image,
         camera,
@@ -181,20 +156,20 @@ class RecognitionNotifier extends Notifier<RecognitionState> {
       if (!ref.mounted) return;
 
       final match = bestMatch(embedder.embed(cropped), _entries);
-      final current = state.face;
-      if (match == null || current == null) return;
+      if (match == null) return;
       _emit(
         state.copyWith(
-          face: current.copyWith(
-            label:
-                '${match.isMatch ? match.name : 'Unknown'} — ${match.percentage.round()}%',
+          clearMessage: true,
+          result: RecognitionResult(
+            name: match.isMatch ? match.name : 'Unknown',
+            percentage: match.percentage,
             isMatch: match.isMatch,
           ),
         ),
       );
     } catch (e) {
       // Without this the exception would escape the image-stream callback on
-      // every frame and the overlay would silently freeze.
+      // every frame and the text would silently freeze.
       if (ref.mounted) {
         _emit(state.copyWith(message: 'Recognition error: $e'));
       }
@@ -205,13 +180,10 @@ class RecognitionNotifier extends Notifier<RecognitionState> {
 
   void _onNoFace() {
     _misses++;
-    final hasFace = state.face != null;
-    if (hasFace && _misses < _missesBeforeClear) return;
-    if (!hasFace && state.message == _noFaceMessage) return;
-    // Start the next appearance from a clean label rather than the last
-    // person's.
-    _lastRecognize = DateTime.fromMillisecondsSinceEpoch(0);
-    _emit(state.copyWith(clearFace: true, message: _noFaceMessage));
+    final hasResult = state.result != null;
+    if (hasResult && _misses < _missesBeforeClear) return;
+    if (!hasResult && state.message == _noFaceMessage) return;
+    _emit(state.copyWith(clearResult: true, message: _noFaceMessage));
   }
 
   static const _noFaceMessage = 'No face detected';

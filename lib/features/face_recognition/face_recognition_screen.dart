@@ -2,7 +2,6 @@ import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import 'face_overlay.dart';
 import 'recognition_notifier.dart';
 import 'recognition_state.dart';
 
@@ -32,54 +31,67 @@ class _CameraView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final previewSize = Size(constraints.maxWidth, constraints.maxHeight);
-        return Stack(
-          fit: StackFit.expand,
-          children: [
-            CameraPreview(controller),
-            FaceOverlay(previewSize: previewSize),
-            const Positioned(
-              bottom: 24,
-              left: 0,
-              right: 0,
-              child: _NoticeChip(),
-            ),
-          ],
-        );
-      },
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        CameraPreview(controller),
+        const Positioned(
+          left: 16,
+          right: 16,
+          bottom: 24,
+          child: SafeArea(child: _ResultPanel()),
+        ),
+      ],
     );
   }
 }
 
-class _NoticeChip extends ConsumerWidget {
-  const _NoticeChip();
+/// Name and accuracy of the person in view, shown as plain text at the bottom.
+/// Watches only the result and notice, so a new frame rebuilds just this.
+class _ResultPanel extends ConsumerWidget {
+  const _ResultPanel();
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final result = ref.watch(recognitionProvider.select((s) => s.result));
     final message = ref.watch(recognitionProvider.select((s) => s.message));
-    return Center(
-      child: AnimatedSwitcher(
-        duration: const Duration(milliseconds: 200),
-        child: message == null
-            ? const SizedBox.shrink()
-            : Container(
-                key: ValueKey(message),
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 8,
-                ),
-                decoration: BoxDecoration(
-                  color: Colors.black54,
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: Text(
-                  message,
-                  style: const TextStyle(color: Colors.white),
-                ),
-              ),
+    final textTheme = Theme.of(context).textTheme;
+
+    final Widget content;
+    if (result != null) {
+      content = Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            result.name,
+            style: textTheme.headlineMedium?.copyWith(
+              color: result.isMatch ? Colors.greenAccent : Colors.orangeAccent,
+              fontWeight: FontWeight.w700,
+            ),
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'Accuracy: ${result.percentage.toStringAsFixed(0)}%',
+            style: textTheme.titleMedium?.copyWith(color: Colors.white),
+          ),
+        ],
+      );
+    } else {
+      content = Text(
+        message ?? '',
+        style: textTheme.titleMedium?.copyWith(color: Colors.white),
+        textAlign: TextAlign.center,
+      );
+    }
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+      decoration: BoxDecoration(
+        color: Colors.black54,
+        borderRadius: BorderRadius.circular(16),
       ),
+      child: content,
     );
   }
 }

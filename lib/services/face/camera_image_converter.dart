@@ -52,20 +52,6 @@ InputImage? inputImageFromCameraImage(
 int mlKitRotationDegrees(CameraDescription camera) =>
     camera.sensorOrientation % 360;
 
-/// The size of the space ML Kit reports [Face.boundingBox] in for [image]:
-/// the frame rotated upright on Android (a 640x480 buffer at 90/270 degrees
-/// yields a 480x640 space), or the raw buffer size on iOS, where
-/// google_mlkit_commons ignores the rotation hint.
-///
-/// Cheap (no pixel work), so the recognition screen can place the overlay on
-/// every detection without decoding the frame.
-Size detectionSizeFor(CameraImage image, CameraDescription camera) {
-  final swap = !Platform.isIOS && mlKitRotationDegrees(camera) % 180 != 0;
-  return swap
-      ? Size(image.height.toDouble(), image.width.toDouble())
-      : Size(image.width.toDouble(), image.height.toDouble());
-}
-
 /// Decodes a raw camera frame into an [img.Image] that lives in the *same*
 /// pixel coordinate space ML Kit reports [Face.boundingBox] in, so a box from
 /// the detector can be used directly against this image (e.g. via

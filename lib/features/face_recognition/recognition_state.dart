@@ -1,39 +1,21 @@
-import 'dart:ui';
-
 import 'package:camera/camera.dart';
 import 'package:flutter/foundation.dart';
 
 enum RecognitionPhase { starting, running, error }
 
-/// A face the detector is currently tracking, in the coordinate space of
-/// [frameSize] (the frame ML Kit measured against).
+/// The latest recognition outcome for the face in view.
 @immutable
-class TrackedFace {
-  const TrackedFace({
-    required this.box,
-    required this.frameSize,
-    this.label,
-    this.isMatch = false,
+class RecognitionResult {
+  const RecognitionResult({
+    required this.name,
+    required this.percentage,
+    required this.isMatch,
   });
 
-  final Rect box;
-  final Size frameSize;
-  final String? label;
+  /// The best-matching registered name, or `Unknown` when below the threshold.
+  final String name;
+  final double percentage;
   final bool isMatch;
-
-  TrackedFace copyWith({
-    Rect? box,
-    Size? frameSize,
-    String? label,
-    bool? isMatch,
-  }) {
-    return TrackedFace(
-      box: box ?? this.box,
-      frameSize: frameSize ?? this.frameSize,
-      label: label ?? this.label,
-      isMatch: isMatch ?? this.isMatch,
-    );
-  }
 }
 
 @immutable
@@ -42,30 +24,30 @@ class RecognitionState {
     this.phase = RecognitionPhase.starting,
     this.message = 'Starting camera…',
     this.controller,
-    this.face,
+    this.result,
   });
 
   final RecognitionPhase phase;
 
-  /// Full-screen text while [phase] is not running; a small transient notice
-  /// (e.g. "No face detected") over the preview while running.
+  /// Full-screen text while [phase] is not running; the bottom-panel notice
+  /// (e.g. "No face detected") while running and there is no [result].
   final String? message;
   final CameraController? controller;
-  final TrackedFace? face;
+  final RecognitionResult? result;
 
   RecognitionState copyWith({
     RecognitionPhase? phase,
     String? message,
     bool clearMessage = false,
     CameraController? controller,
-    TrackedFace? face,
-    bool clearFace = false,
+    RecognitionResult? result,
+    bool clearResult = false,
   }) {
     return RecognitionState(
       phase: phase ?? this.phase,
       message: clearMessage ? null : (message ?? this.message),
       controller: controller ?? this.controller,
-      face: clearFace ? null : (face ?? this.face),
+      result: clearResult ? null : (result ?? this.result),
     );
   }
 }
