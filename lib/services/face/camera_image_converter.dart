@@ -92,28 +92,35 @@ img.Image imageFromFrameBytes({
   return img.copyRotate(decoded, angle: rotationDegrees);
 }
 
+/// NV21 -> RGB with integer math straight into a byte buffer. The per-pixel
+/// `setPixelRgb` + floating point version this replaced was the slowest step
+/// in the recognition pipeline.
 img.Image _nv21ToImage(Uint8List bytes, int width, int height) {
   final frameSize = width * height;
-  final out = img.Image(width: width, height: height);
-
+  final rgb = Uint8List(frameSize * 3);
+  var out = 0;
   for (var row = 0; row < height; row++) {
+    final yRow = row * width;
+    final uvRow = frameSize + (row >> 1) * width;
     for (var col = 0; col < width; col++) {
-      final y = bytes[row * width + col] & 0xff;
-      final uvRow = row ~/ 2;
-      final uvCol = col ~/ 2;
-      final uvIndex = frameSize + uvRow * width + uvCol * 2;
-      final v = bytes[uvIndex] & 0xff;
-      final u = bytes[uvIndex + 1] & 0xff;
+      final y = bytes[yRow + col];
+      final uvIndex = uvRow + (col & ~1);
+      final v = bytes[uvIndex] - 128;
+      final u = bytes[uvIndex + 1] - 128;
 
-      final r = (y + 1.370705 * (v - 128)).round().clamp(0, 255);
-      final g = (y - 0.337633 * (u - 128) - 0.698001 * (v - 128)).round().clamp(
-        0,
-        255,
-      );
-      final b = (y + 1.732446 * (u - 128)).round().clamp(0, 255);
+      final r = y + ((1404 * v) >> 10);
+      final g = y - ((346 * u + 715 * v) >> 10);
+      final b = y + ((1774 * u) >> 10);
 
-      out.setPixelRgb(col, row, r, g, b);
+      rgb[out++] = r < 0 ? 0 : (r > 255 ? 255 : r);
+      rgb[out++] = g < 0 ? 0 : (g > 255 ? 255 : g);
+      rgb[out++] = b < 0 ? 0 : (b > 255 ? 255 : b);
     }
   }
-  return out;
+  return img.Image.fromBytes(
+    width: width,
+    height: height,
+    bytes: rgb.buffer,
+    numChannels: 3,
+  );
 }

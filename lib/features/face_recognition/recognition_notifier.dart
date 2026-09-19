@@ -5,6 +5,8 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../services/face/camera_image_converter.dart';
+import '../../services/face/embedding_smoother.dart';
+import '../../services/face/face_detector_service.dart';
 import '../../services/face/face_entry.dart';
 import '../../services/face/face_similarity.dart';
 import '../../services/face/frame_cropper.dart';
@@ -27,6 +29,10 @@ class RecognitionNotifier extends Notifier<RecognitionState> {
   bool _isStarting = false;
   bool _isBusy = false;
   int _misses = 0;
+
+  /// Averages the last few frames' embeddings. Starts at one frame, so the
+  /// first result appears immediately and firms up as more frames arrive.
+  final _smoother = EmbeddingSmoother(window: 4);
 
   /// Registered faces, loaded once per start rather than re-read from disk on
   /// every inference.
@@ -57,13 +63,27 @@ class RecognitionNotifier extends Notifier<RecognitionState> {
       _emit(const RecognitionState());
 
       final repository = await ref.read(faceRepositoryProvider.future);
-      final entries = await repository.loadAll();
+      final all = await repository.loadAll();
       if (!ref.mounted) return;
-      if (entries.isEmpty) {
+      if (all.isEmpty) {
         _fail('Register a face first.');
         return;
       }
+      final entries = all
+          .where((e) => e.embeddingVersion == currentEmbeddingVersion)
+          .toList();
+      if (entries.isEmpty) {
+        _fail(
+          'Face matching was upgraded. Please register your faces again '
+          'for better accuracy.',
+        );
+        return;
+      }
       _entries = entries;
+
+      // Load the model up front so the first frame isn't spent waiting on it.
+      await ref.read(faceEmbedderServiceProvider.future);
+      if (!ref.mounted) return;
 
       final List<CameraDescription> cameras;
       try {
@@ -103,6 +123,7 @@ class RecognitionNotifier extends Notifier<RecognitionState> {
 
       _controller = controller;
       _misses = 0;
+      _smoother.reset();
       _emit(
         RecognitionState(
           phase: RecognitionPhase.running,
@@ -150,12 +171,13 @@ class RecognitionNotifier extends Notifier<RecognitionState> {
         face.boundingBox,
         size: _embedSize,
         isIOS: Platform.isIOS,
+        landmarks: face.alignmentLandmarks,
       );
       if (!ref.mounted) return;
       final embedder = await ref.read(faceEmbedderServiceProvider.future);
       if (!ref.mounted) return;
 
-      final match = bestMatch(embedder.embed(cropped), _entries);
+      final match = bestMatch(_smoother.add(embedder.embed(cropped)), _entries);
       if (match == null) return;
       _emit(
         state.copyWith(
@@ -183,6 +205,7 @@ class RecognitionNotifier extends Notifier<RecognitionState> {
     final hasResult = state.result != null;
     if (hasResult && _misses < _missesBeforeClear) return;
     if (!hasResult && state.message == _noFaceMessage) return;
+    _smoother.reset();
     _emit(state.copyWith(clearResult: true, message: _noFaceMessage));
   }
 

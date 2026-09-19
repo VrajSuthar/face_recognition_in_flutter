@@ -30,4 +30,40 @@ void main() {
     );
     expect((image.width, image.height), (2, 4));
   });
+
+  test('NV21 neutral chroma decodes to the luma value on every channel', () {
+    final gray = Uint8List.fromList([
+      ...List.filled(8, 100),
+      128, 128, 128, 128,
+    ]);
+    final image = imageFromFrameBytes(
+      bytes: gray,
+      width: 4,
+      height: 2,
+      bytesPerRow: 4,
+      isIOS: false,
+      rotationDegrees: 0,
+    );
+    final px = image.getPixel(2, 1);
+    expect((px.r, px.g, px.b), (100, 100, 100));
+  });
+
+  test('NV21 saturated red chroma decodes to a red pixel', () {
+    final red = Uint8List.fromList([
+      ...List.filled(8, 82),
+      240, 90, 240, 90, // V high, U low
+    ]);
+    final image = imageFromFrameBytes(
+      bytes: red,
+      width: 4,
+      height: 2,
+      bytesPerRow: 4,
+      isIOS: false,
+      rotationDegrees: 0,
+    );
+    final px = image.getPixel(0, 0);
+    expect(px.r, greaterThan(200));
+    expect(px.g, lessThan(60));
+    expect(px.b, lessThan(60));
+  });
 }

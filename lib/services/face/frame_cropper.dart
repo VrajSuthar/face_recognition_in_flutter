@@ -6,7 +6,7 @@ import 'package:camera/camera.dart';
 import 'package:image/image.dart' as img;
 
 import 'camera_image_converter.dart';
-import 'face_crop.dart';
+import 'face_alignment.dart';
 
 typedef _CropArgs = ({
   Uint8List bytes,
@@ -20,9 +20,10 @@ typedef _CropArgs = ({
   double right,
   double bottom,
   int size,
+  List<double>? landmarks,
 });
 
-/// Decodes [image] and crops the face at [box] (in ML Kit's coordinate space,
+/// Decodes [image] and aligns/crops the face at [box] (in ML Kit's coordinate space,
 /// see [imageFromFrameBytes]) down to a [size]×[size] square, on a background
 /// isolate so the UI thread never stalls on the pixel work.
 Future<img.Image> cropFaceInBackground(
@@ -31,6 +32,7 @@ Future<img.Image> cropFaceInBackground(
   Rect box, {
   required int size,
   required bool isIOS,
+  List<double>? landmarks,
 }) async {
   final plane = image.planes.first;
   final args = (
@@ -45,6 +47,7 @@ Future<img.Image> cropFaceInBackground(
     right: box.right,
     bottom: box.bottom,
     size: size,
+    landmarks: landmarks,
   );
   final rgb = await Isolate.run(() => _decodeAndCrop(args));
   return img.Image.fromBytes(
@@ -64,10 +67,11 @@ Uint8List _decodeAndCrop(_CropArgs a) {
     isIOS: a.isIOS,
     rotationDegrees: a.rotationDegrees,
   );
-  final cropped = cropFaceSquare(
+  final cropped = alignFace(
     frame,
-    Rect.fromLTRB(a.left, a.top, a.right, a.bottom),
+    box: Rect.fromLTRB(a.left, a.top, a.right, a.bottom),
     size: a.size,
+    landmarks: a.landmarks,
   );
   return cropped.getBytes(order: img.ChannelOrder.rgb);
 }

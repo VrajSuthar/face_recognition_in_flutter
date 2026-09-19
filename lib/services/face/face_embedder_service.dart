@@ -11,7 +11,10 @@ class FaceEmbedderService {
   static const inputSize = 112;
 
   static Future<FaceEmbedderService> load() async {
-    final interpreter = await Interpreter.fromAsset(modelAsset);
+    final interpreter = await Interpreter.fromAsset(
+      modelAsset,
+      options: InterpreterOptions()..threads = 4,
+    );
     final outputSize = interpreter.getOutputTensor(0).shape.last;
     return FaceEmbedderService._(interpreter, outputSize);
   }

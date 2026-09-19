@@ -1,10 +1,16 @@
 import 'package:google_mlkit_face_detection/google_mlkit_face_detection.dart';
 
 class FaceDetectorService {
-  FaceDetectorService()
-      : _detector = FaceDetector(
-          options: FaceDetectorOptions(performanceMode: FaceDetectorMode.fast),
-        );
+  /// [FaceDetectorMode.fast] for the live camera; [FaceDetectorMode.accurate]
+  /// for one-off registration photos, where landmark quality matters more than
+  /// speed.
+  FaceDetectorService({FaceDetectorMode mode = FaceDetectorMode.fast})
+    : _detector = FaceDetector(
+        options: FaceDetectorOptions(
+          performanceMode: mode,
+          enableLandmarks: true,
+        ),
+      );
 
   final FaceDetector _detector;
 
@@ -25,4 +31,22 @@ class FaceDetectorService {
   }
 
   void close() => _detector.close();
+}
+
+extension FaceAlignmentLandmarks on Face {
+  /// `[eyeX, eyeY, eyeX, eyeY, mouthX, mouthY, mouthX, mouthY]` in the same
+  /// coordinate space as [Face.boundingBox], or null if any landmark is
+  /// missing. Consumed by `alignFace`.
+  List<double>? get alignmentLandmarks {
+    final points = [
+      landmarks[FaceLandmarkType.leftEye]?.position,
+      landmarks[FaceLandmarkType.rightEye]?.position,
+      landmarks[FaceLandmarkType.leftMouth]?.position,
+      landmarks[FaceLandmarkType.rightMouth]?.position,
+    ];
+    if (points.any((p) => p == null)) return null;
+    return [
+      for (final p in points) ...[p!.x.toDouble(), p.y.toDouble()],
+    ];
+  }
 }
