@@ -120,6 +120,9 @@ class RecognitionNotifier extends Notifier<RecognitionState> {
         await _safeDispose(controller);
         return;
       }
+      // The front camera has no physical flash, but some devices still expose
+      // a flash mode that can trigger the screen-flash fallback; force it off.
+      await controller.setFlashMode(FlashMode.off).catchError((Object _) {});
 
       _controller = controller;
       _misses = 0;

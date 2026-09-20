@@ -7,6 +7,7 @@ import 'package:google_mlkit_face_detection/google_mlkit_face_detection.dart';
 import 'package:image/image.dart' as img;
 import 'package:image_picker/image_picker.dart';
 import 'package:path/path.dart' as p;
+import 'package:path_provider/path_provider.dart';
 
 import '../../services/face/face_alignment.dart';
 import '../../services/face/face_detector_service.dart';
@@ -246,15 +247,35 @@ class RegisterFaceNotifier extends Notifier<RegisterFaceState> {
     if (raw == null) {
       throw Exception('Could not decode the selected image.');
     }
-    // ML Kit's file-based decoder honours EXIF orientation but
-    // `img.decodeImage` does not, so bake it in — otherwise the detected
-    // bounding box and these pixels disagree for any photo taken in
-    // portrait, and the crop grabs the wrong region.
+    // `img.decodeImage` does not honour EXIF orientation, so bake it in —
+    // otherwise the detected bounding box and these pixels disagree for any
+    // photo taken in portrait, and the crop grabs the wrong region.
     final decoded = img.bakeOrientation(raw);
 
-    final face = await ref
-        .read(enrollmentDetectorServiceProvider)
-        .detectLargestFace(InputImage.fromFilePath(picked.path));
+    // Detect on the *baked* pixels via a temp file rather than on
+    // `picked.path` directly. iOS front-camera captures can carry a mirrored
+    // EXIF orientation that ML Kit's own iOS file loader doesn't always
+    // resolve the same way `image`'s bakeOrientation does, which silently
+    // fails detection on iOS (Android's ML Kit file loader happens to agree
+    // with `image`, so it isn't affected). Detecting on the same upright
+    // pixels used for the crop also guarantees they can never disagree.
+    final tempDir = await getTemporaryDirectory();
+    final tempFile = File(
+      p.join(
+        tempDir.path,
+        'register_${DateTime.now().microsecondsSinceEpoch}.jpg',
+      ),
+    );
+    await tempFile.writeAsBytes(img.encodeJpg(decoded), flush: true);
+
+    final Face? face;
+    try {
+      face = await ref
+          .read(enrollmentDetectorServiceProvider)
+          .detectLargestFace(InputImage.fromFilePath(tempFile.path));
+    } finally {
+      if (await tempFile.exists()) await tempFile.delete();
+    }
     if (face == null) {
       throw Exception('No face detected in the selected image.');
     }
