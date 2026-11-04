@@ -19,10 +19,9 @@ const _embedSize = 112;
 /// single missed detection doesn't make the text flicker to "No face".
 const _missesBeforeClear = 3;
 
-final recognitionProvider =
-    NotifierProvider.autoDispose<RecognitionNotifier, RecognitionState>(
-      RecognitionNotifier.new,
-    );
+final recognitionProvider = NotifierProvider.autoDispose<RecognitionNotifier, RecognitionState>(
+  RecognitionNotifier.new,
+);
 
 class RecognitionNotifier extends Notifier<RecognitionState> {
   CameraController? _controller;
@@ -69,9 +68,7 @@ class RecognitionNotifier extends Notifier<RecognitionState> {
         _fail('Register a face first.');
         return;
       }
-      final entries = all
-          .where((e) => e.embeddingVersion == currentEmbeddingVersion)
-          .toList();
+      final entries = all.where((e) => e.embeddingVersion == currentEmbeddingVersion).toList();
       if (entries.isEmpty) {
         _fail(
           'Face matching was upgraded. Please register your faces again '
@@ -105,9 +102,7 @@ class RecognitionNotifier extends Notifier<RecognitionState> {
         camera,
         ResolutionPreset.medium,
         enableAudio: false,
-        imageFormatGroup: Platform.isIOS
-            ? ImageFormatGroup.bgra8888
-            : ImageFormatGroup.nv21,
+        imageFormatGroup: Platform.isIOS ? ImageFormatGroup.bgra8888 : ImageFormatGroup.nv21,
       );
       try {
         await controller.initialize();
@@ -123,17 +118,12 @@ class RecognitionNotifier extends Notifier<RecognitionState> {
       // The front camera has no physical flash, but some devices still expose
       // a flash mode that can trigger the screen-flash fallback; force it off.
       await controller.setFlashMode(FlashMode.off).catchError((Object _) {});
+      if (Platform.isIOS) await _tuneIosExposure(controller);
 
       _controller = controller;
       _misses = 0;
       _smoother.reset();
-      _emit(
-        RecognitionState(
-          phase: RecognitionPhase.running,
-          message: null,
-          controller: controller,
-        ),
-      );
+      _emit(RecognitionState(phase: RecognitionPhase.running, message: null, controller: controller));
       await controller.startImageStream((image) => _onFrame(image, camera));
     } catch (e) {
       // A corrupted faces index, a failing provider, an image stream that
@@ -157,9 +147,7 @@ class RecognitionNotifier extends Notifier<RecognitionState> {
       final inputImage = inputImageFromCameraImage(image, camera);
       if (inputImage == null) return;
 
-      final face = await ref
-          .read(faceDetectorServiceProvider)
-          .detectLargestFace(inputImage);
+      final face = await ref.read(faceDetectorServiceProvider).detectLargestFace(inputImage);
       if (!ref.mounted) return;
 
       if (face == null) {
@@ -233,6 +221,18 @@ class RecognitionNotifier extends Notifier<RecognitionState> {
       await controller.stopImageStream().catchError((Object _) {});
     }
     await _safeDispose(controller);
+  }
+
+  /// iOS tends to overexpose the face on the front camera; bias exposure down a
+  /// little for a natural look. Only the offset is touched, never the metering.
+  Future<void> _tuneIosExposure(CameraController controller) async {
+    try {
+      final min = await controller.getMinExposureOffset();
+      final max = await controller.getMaxExposureOffset();
+      if (max > min) {
+        await controller.setExposureOffset((-0.6).clamp(min, max).toDouble());
+      }
+    } catch (_) {}
   }
 
   Future<void> _safeDispose(CameraController controller) async {
