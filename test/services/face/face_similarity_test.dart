@@ -44,5 +44,33 @@ void main() {
       expect(match!.isMatch, isFalse);
       expect(match.percentage, closeTo(0, 1e-6));
     });
+
+    test('several photos of one person do not count as a close runner-up', () {
+      const alice2 = FaceEntry(name: 'Alice', imagePath: 'a2.png', embedding: [0.99, 0.1, 0]);
+      final match = bestMatch([1, 0, 0], [alice, alice2, bob]);
+      expect(match!.name, 'Alice');
+      expect(match.isMatch, isTrue);
+      expect(match.isAmbiguous, isFalse);
+    });
+
+    test('two different people scoring too close together is ambiguous, not a match', () {
+      const twin = FaceEntry(name: 'Twin', imagePath: 't.png', embedding: [0.99, 0.12, 0]);
+      final match = bestMatch([1, 0.05, 0], [alice, twin, bob]);
+      expect(match!.isMatch, isFalse);
+      expect(match.isAmbiguous, isTrue);
+    });
+
+    test('a clear winner far ahead of the next person is a match', () {
+      final match = bestMatch([1, 0.05, 0], [alice, bob]);
+      expect(match!.name, 'Alice');
+      expect(match.isMatch, isTrue);
+    });
+
+    test('two people with the same name are compared as different people', () {
+      const a = FaceEntry(name: 'Aarav', imagePath: 'a', embedding: [1, 0, 0], personId: 'stu_1');
+      const b = FaceEntry(name: 'Aarav', imagePath: 'b', embedding: [0.99, 0.12, 0], personId: 'stu_2');
+      final match = bestMatch([1, 0.05, 0], [a, b]);
+      expect(match!.isAmbiguous, isTrue);
+    });
   });
 }

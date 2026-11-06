@@ -12,7 +12,8 @@ class RecognitionResult {
     required this.isMatch,
   });
 
-  /// The best-matching registered name, or `Unknown` when below the threshold.
+  /// The best-matching registered name; `Unknown` below the threshold, or
+  /// `Not sure` when two people score too close to tell apart.
   final String name;
   final double percentage;
   final bool isMatch;

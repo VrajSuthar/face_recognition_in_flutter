@@ -28,6 +28,13 @@
 	<true/>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>This app needs access to your photo library to select a face image for registration.</string>
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<key>NSAllowsLocalNetworking</key>
+		<true/>
+	</dict>
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>This app connects to the school server on your local network to download teacher and student faces.</string>
 	<key>NSCameraUsageDescription</key>
 	<string>This app needs access to your camera to capture a face image for registration.</string>
 	<key>UIApplicationSceneManifest</key>

@@ -1,6 +1,7 @@
 import 'package:go_router/go_router.dart';
 
 import '../features/face_recognition/face_recognition_screen.dart';
+import '../features/face_sync/face_sync_screen.dart';
 import '../features/home/home_screen.dart';
 import '../features/register_face/register_face_screen.dart';
 
@@ -18,6 +19,10 @@ final appRouter = GoRouter(
     GoRoute(
       path: '/register-face',
       builder: (context, state) => const RegisterFaceScreen(),
+    ),
+    GoRoute(
+      path: '/face-sync',
+      builder: (context, state) => const FaceSyncScreen(),
     ),
   ],
 );

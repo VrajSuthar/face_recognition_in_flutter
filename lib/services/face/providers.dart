@@ -1,6 +1,8 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_mlkit_face_detection/google_mlkit_face_detection.dart';
 
+import 'api/face_api_config.dart';
+import 'api/face_remote_repository.dart';
 import 'face_detector_service.dart';
 import 'face_embedder_service.dart';
 import 'face_repository.dart';
@@ -28,4 +30,10 @@ final faceEmbedderServiceProvider = FutureProvider<FaceEmbedderService>((
 
 final faceRepositoryProvider = FutureProvider<FaceRepository>((ref) {
   return FaceRepository.forAppDocuments();
+});
+
+final faceRemoteRepositoryProvider = Provider<FaceRemoteRepository>((ref) {
+  final remote = FaceRemoteRepository(ref.watch(faceApiConfigProvider));
+  ref.onDispose(remote.close);
+  return remote;
 });

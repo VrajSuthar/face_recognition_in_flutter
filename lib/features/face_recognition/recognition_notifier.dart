@@ -173,7 +173,9 @@ class RecognitionNotifier extends Notifier<RecognitionState> {
         state.copyWith(
           clearMessage: true,
           result: RecognitionResult(
-            name: match.isMatch ? match.name : 'Unknown',
+            name: match.isMatch
+                ? match.name
+                : (match.isAmbiguous ? 'Not sure' : 'Unknown'),
             percentage: match.percentage,
             isMatch: match.isMatch,
           ),

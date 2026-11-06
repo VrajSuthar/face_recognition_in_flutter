@@ -1,8 +1,8 @@
 # Face Recognition — How It Works & Progress
 
-As of 2026-09-19.
+As of 2026-11-06. Server sync, the API format and on-phone storage are documented in [FACE_SYNC_API.md](FACE_SYNC_API.md).
 
-On-device face registration and live recognition built with Flutter, Google ML Kit face detection, and a MobileFaceNet TFLite embedding model — no network calls, no cloud service.
+On-device face registration and live recognition built with Flutter, Google ML Kit face detection, and a MobileFaceNet TFLite embedding model. Recognition runs entirely on the phone; the only network use is the optional sync that pulls teachers' and students' photos from the school server.
 
 ## Pipeline overview
 
@@ -18,7 +18,7 @@ flowchart LR
     E --> F
     F --> G[MobileFaceNet TFLite<br/>128-d embedding]
     G --> H{Mode}
-    H -->|Register| I[Save PNG + embedding<br/>to faces_index.json]
+    H -->|Register / Sync| I[Save PNG + embedding<br/>to faces.db]
     H -->|Recognize| J[4-frame embedding average]
     J --> K[Cosine similarity vs<br/>all saved embeddings]
     K --> L[Best match name<br/>+ accuracy %]
@@ -53,7 +53,7 @@ Failures are per-photo (e.g. "no face detected" in one of five) rather than abor
 2. ML Kit (**fast** mode here, vs. accurate mode for registration) detects the largest face. No face → the panel shows "No face detected" after 3 consecutive misses (avoids flicker on a single dropped frame).
 3. The raw frame is decoded and aligned/cropped to 112x112 **on a background isolate** (`cropFaceInBackground`) so per-pixel NV21→RGB conversion and the warp never block the UI thread.
 4. The crop is embedded, then fed into a 4-frame `EmbeddingSmoother` that L2-normalises and averages recent embeddings — a single blurry or oddly lit frame can't swing the result. A new face that looks nothing like the running average (cosine < 0.4) resets the window instead of blending into it.
-5. `bestMatch` compares the smoothed embedding against every saved entry by cosine similarity and returns the closest one; the result is shown as "Unknown" whenever the best score is still below `matchThreshold` (0.65), rather than forcing a name onto an unrecognised face.
+5. `bestMatch` compares the smoothed embedding against every saved entry by cosine similarity, scores each person by their best photo, and shows the name only when that person clears `matchThreshold` (0.85) **and** leads the next different person by `matchMargin` (0.05). Otherwise it shows "Unknown" (nobody close enough) or "Not sure" (two people too close to call).
 6. Name + accuracy percentage render as plain text over the camera preview.
 
 ## Core algorithms
@@ -62,7 +62,7 @@ Failures are per-photo (e.g. "no face detected" in one of five) rather than abor
 
 **Embedding** (`face_embedder_service.dart`) — the aligned 112x112 face is normalised (`(pixel - 127.5) / 128`) and run through **MobileFaceNet**, a TFLite model bundled in `assets/model/mobilefacenet.tflite`, producing a 128-d embedding vector. Faces of the same person land close together in this space; different people land far apart.
 
-**Matching** (`face_similarity.dart`) — cosine similarity between the live embedding and every saved one; the closest entry wins. A match is only reported as a name when similarity ≥ `matchThreshold` (0.65); below that, the UI shows "Unknown" rather than a low-confidence guess.
+**Matching** (`face_similarity.dart`) — cosine similarity between the live embedding and every saved one, grouped by person id (so two people with the same name never merge). A name is only reported when the best person's score is ≥ `matchThreshold` (0.85) and at least `matchMargin` (0.05) ahead of the runner-up person; otherwise "Unknown" or "Not sure".
 
 **Temporal smoothing** (`embedding_smoother.dart`) — live recognition averages the last 4 frames' L2-normalised embeddings before matching, so a single blurry frame or motion blur can't flip the result frame-to-frame. A big similarity drop between a new frame and the running average (a face swap in front of the camera) clears the window instead of blending old and new identities together.
 
@@ -70,14 +70,9 @@ Failures are per-photo (e.g. "no face detected" in one of five) rather than abor
 
 ## Data model and storage
 
-Everything is stored locally under the app's documents directory (`getApplicationDocumentsDirectory()/assets/`) via `FaceRepository` — no backend, no network round-trip for either registration or recognition.
+Everything is stored locally under the app's documents directory (`getApplicationDocumentsDirectory()/assets/`) via `FaceRepository`, in a SQLite database `faces.db` (tables `people`, `face_photos`, `sync_state`) plus one 112x112 crop PNG per photo. Embeddings are stored as binary BLOBs, and each save or delete touches only its own rows. Faces saved by older versions in `faces_index.json` are imported automatically on first launch (the file is renamed to `faces_index.json.migrated`).
 
-| File | Contents |
-| --- | --- |
-| `faces_index.json` | A JSON array of `FaceEntry` records: `name`, `imagePath`, `embedding` (128 floats), `embeddingVersion` |
-| `face_<timestamp>_<i>.png` | The aligned 112x112 face crop for each registered photo, kept alongside its entry for later review |
-
-`FaceRepository.add` appends to the index by reading the whole file, adding the entry, and rewriting it — fine at the scale of a handful of registered people, but it means every save is O(n) in total registered entries and there's no per-person delete/update yet.
+Full schema, file layout and sizes: [FACE_SYNC_API.md § 3](FACE_SYNC_API.md#3-what-the-phone-stores-and-where).
 
 ## Platform notes
 
@@ -116,8 +111,7 @@ Each step was landed with tests, then a follow-up "Fix" commit addressing review
 ## Known limitations and next steps
 
 - [ ] Portrait-only: the recognition screen locks orientation and assumes a fixed sensor angle; landscape/rotation support needs `sensorOrientation` combined with live device orientation per lens direction.
-- [ ] No per-person management: entries can be added but not renamed, viewed as a list, or deleted from the UI — only `faces_index.json` grows.
-- [ ] `FaceRepository.add` rewrites the whole index file on every save — fine today, would need a real store (or at least incremental writes) at larger scale.
+- [ ] No per-person management screen: synced people are added and removed by the server, but locally registered entries cannot be renamed or deleted from the UI.
 - [ ] No liveness/anti-spoofing check — a photo of a photo can currently pass as a live face.
-- [ ] Match threshold (0.65) and smoothing window (4 frames) are fixed constants, not yet tuned against a labelled test set.
+- [ ] Match threshold (0.85), margin (0.05) and smoothing window (4 frames) are fixed constants, not yet tuned against a labelled test set.
 - [ ] iOS has not yet been run on a physical device or simulator since today's deployment-target fix — worth a build/run pass to confirm the pod changes resolve the original error end-to-end.

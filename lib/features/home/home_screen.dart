@@ -20,6 +20,12 @@ class HomeScreen extends StatelessWidget {
               onPressed: () => context.push('/face-recognition'),
               child: const Text('Face Recognition'),
             ),
+            const SizedBox(height: 12),
+            OutlinedButton.icon(
+              onPressed: () => context.push('/face-sync'),
+              icon: const Icon(Icons.sync),
+              label: const Text('Sync Faces from Server'),
+            ),
           ],
         ),
       ),
