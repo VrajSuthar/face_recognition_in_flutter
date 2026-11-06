@@ -15,6 +15,7 @@ typedef _CropArgs = ({
   int bytesPerRow,
   bool isIOS,
   int rotationDegrees,
+  bool mirrored,
   double left,
   double top,
   double right,
@@ -42,6 +43,10 @@ Future<img.Image> cropFaceInBackground(
     bytesPerRow: plane.bytesPerRow,
     isIOS: isIOS,
     rotationDegrees: mlKitRotationDegrees(camera),
+    // The iOS camera plugin mirrors the front camera's stream (Android's is
+    // not mirrored, and neither are registration photos). A mirrored face
+    // embeds noticeably differently, so it has to be flipped back.
+    mirrored: isIOS && camera.lensDirection == CameraLensDirection.front,
     left: box.left,
     top: box.top,
     right: box.right,
@@ -67,11 +72,25 @@ Uint8List _decodeAndCrop(_CropArgs a) {
     isIOS: a.isIOS,
     rotationDegrees: a.rotationDegrees,
   );
+  var box = Rect.fromLTRB(a.left, a.top, a.right, a.bottom);
+  var landmarks = a.landmarks;
+  if (a.mirrored) {
+    // Un-mirror the pixels and move ML Kit's coordinates along with them.
+    img.flipHorizontal(frame);
+    final w = frame.width.toDouble();
+    box = Rect.fromLTRB(w - box.right, box.top, w - box.left, box.bottom);
+    landmarks = landmarks == null
+        ? null
+        : [
+            for (var i = 0; i < landmarks.length; i++)
+              i.isEven ? w - landmarks[i] : landmarks[i],
+          ];
+  }
   final cropped = alignFace(
     frame,
-    box: Rect.fromLTRB(a.left, a.top, a.right, a.bottom),
+    box: box,
     size: a.size,
-    landmarks: a.landmarks,
+    landmarks: landmarks,
   );
   return cropped.getBytes(order: img.ChannelOrder.rgb);
 }

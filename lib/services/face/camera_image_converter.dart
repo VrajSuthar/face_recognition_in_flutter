@@ -81,7 +81,12 @@ img.Image imageFromFrameBytes({
     return img.Image.fromBytes(
       width: width,
       height: height,
+      // Frames arrive over a platform channel as a *view* into the larger
+      // message buffer, so the pixels start at `offsetInBytes`, not at 0.
+      // Ignoring it reads the message header as pixels and scrambles the
+      // BGRA channels.
       bytes: bytes.buffer,
+      bytesOffset: bytes.offsetInBytes,
       order: img.ChannelOrder.bgra,
       rowStride: bytesPerRow,
     );

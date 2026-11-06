@@ -66,4 +66,25 @@ void main() {
     expect(px.g, lessThan(60));
     expect(px.b, lessThan(60));
   });
+
+  test('BGRA frame that is a view into a larger buffer decodes from its offset', () {
+    // Platform-channel bytes are views into the message buffer; an odd offset
+    // like this one would misalign every channel if it were ignored.
+    final backing = Uint8List(7 + 8)..fillRange(0, 7, 0xEE);
+    final frame = Uint8List.view(backing.buffer, 7, 8)
+      ..setAll(0, [10, 20, 30, 255, 40, 50, 60, 255]); // B, G, R, A x2
+    final image = imageFromFrameBytes(
+      bytes: frame,
+      width: 2,
+      height: 1,
+      bytesPerRow: 8,
+      isIOS: true,
+      rotationDegrees: 0,
+    );
+
+    final first = image.getPixel(0, 0);
+    expect([first.r, first.g, first.b], [30, 20, 10]);
+    final second = image.getPixel(1, 0);
+    expect([second.r, second.g, second.b], [60, 50, 40]);
+  });
 }

@@ -118,7 +118,6 @@ class RecognitionNotifier extends Notifier<RecognitionState> {
       // The front camera has no physical flash, but some devices still expose
       // a flash mode that can trigger the screen-flash fallback; force it off.
       await controller.setFlashMode(FlashMode.off).catchError((Object _) {});
-      if (Platform.isIOS) await _tuneIosExposure(controller);
 
       _controller = controller;
       _misses = 0;
@@ -221,18 +220,6 @@ class RecognitionNotifier extends Notifier<RecognitionState> {
       await controller.stopImageStream().catchError((Object _) {});
     }
     await _safeDispose(controller);
-  }
-
-  /// iOS tends to overexpose the face on the front camera; bias exposure down a
-  /// little for a natural look. Only the offset is touched, never the metering.
-  Future<void> _tuneIosExposure(CameraController controller) async {
-    try {
-      final min = await controller.getMinExposureOffset();
-      final max = await controller.getMaxExposureOffset();
-      if (max > min) {
-        await controller.setExposureOffset((-0.6).clamp(min, max).toDouble());
-      }
-    } catch (_) {}
   }
 
   Future<void> _safeDispose(CameraController controller) async {
